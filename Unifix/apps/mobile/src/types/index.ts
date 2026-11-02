@@ -37,6 +37,16 @@ export interface Ticket {
     comments?: number;
   };
   comments?: Comment[];
+  attachments?: Attachment[];
+}
+
+export interface Attachment {
+  id: string;
+  filename: string;
+  filepath: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
 }
 
 export interface Comment {

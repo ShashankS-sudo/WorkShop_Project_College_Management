@@ -1,6 +1,7 @@
 import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import path from 'path';
 import { getConfig } from '@unifix/shared-config';
 import logger, { requestLogger, errorLogger } from './lib/logger';
 import router from './routes';
@@ -14,7 +15,14 @@ const config = getConfig();
 // Core Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
+// Serve uploaded files statically with cross-origin access
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 // Request logging
 app.use(requestLogger);

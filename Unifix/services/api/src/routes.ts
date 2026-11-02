@@ -16,6 +16,7 @@ import {
   reopenTicketSchema,
   markDuplicateSchema,
   createCommentSchema,
+  uploadAttachmentSchema,
   aiParseRequestSchema,
   aiSimilarityRequestSchema,
 } from '@unifix/shared-schemas';
@@ -25,6 +26,7 @@ import * as ticketController from './controllers/ticketController';
 import * as aiController from './controllers/aiController';
 import * as managementController from './controllers/managementController';
 import * as notificationController from './controllers/notificationController';
+import * as attachmentController from './controllers/attachmentController';
 import { runEscalationCheck } from './lib/escalationEngine';
 
 const router = express.Router();
@@ -96,6 +98,35 @@ router.post(
   authenticate,
   validateBody(reopenTicketSchema),
   ticketController.reopenTicket
+);
+
+// Ticket Attachments & Media
+router.post(
+  '/tickets/attachments/upload',
+  authenticate,
+  attachmentController.uploadMiddleware,
+  attachmentController.uploadAttachment
+);
+router.post(
+  '/tickets/attachments/presign',
+  authenticate,
+  attachmentController.getPresignedUploadUrl
+);
+router.get(
+  '/tickets/:ticketId/attachments',
+  authenticate,
+  attachmentController.listTicketAttachments
+);
+router.post(
+  '/tickets/:ticketId/attachments',
+  authenticate,
+  validateBody(uploadAttachmentSchema),
+  attachmentController.attachToTicket
+);
+router.delete(
+  '/tickets/:ticketId/attachments/:attachmentId',
+  authenticate,
+  attachmentController.deleteAttachment
 );
 
 // Management Ticket Operations

@@ -119,9 +119,13 @@ export const MobileApiClient = {
 
     const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
     };
+
+    // Only set Content-Type if not sending FormData
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (authToken && !headers['Authorization']) {
       headers['Authorization'] = `Bearer ${authToken}`;
@@ -232,6 +236,41 @@ export const MobileApiClient = {
     return this.request(`/tickets/${ticketId}/reopen`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
+    });
+  },
+
+  // Attachment & Media Methods
+  async uploadAttachment(formData: FormData) {
+    return this.request('/tickets/attachments/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  async getPresignedUploadUrl(filename: string, mimeType: string, folder = 'tickets') {
+    return this.request('/tickets/attachments/presign', {
+      method: 'POST',
+      body: JSON.stringify({ filename, mimeType, folder }),
+    });
+  },
+
+  async addTicketAttachment(
+    ticketId: string,
+    attachment: { filename: string; filepath: string; mimeType: string; size: number }
+  ) {
+    return this.request(`/tickets/${ticketId}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify(attachment),
+    });
+  },
+
+  async getTicketAttachments(ticketId: string) {
+    return this.request(`/tickets/${ticketId}/attachments`);
+  },
+
+  async deleteTicketAttachment(ticketId: string, attachmentId: string) {
+    return this.request(`/tickets/${ticketId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
     });
   },
 

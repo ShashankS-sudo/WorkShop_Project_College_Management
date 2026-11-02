@@ -8,6 +8,9 @@ import {
   Flame,
   User,
   Send,
+  Paperclip,
+  UploadCloud,
+  Trash2,
 } from 'lucide-react';
 
 interface TicketDetailPageProps {
@@ -24,10 +27,12 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
   const { socket, joinRoom, leaveRoom } = useSocket();
   const [ticket, setTicket] = useState<any>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'details' | 'progress' | 'history' | 'comments'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'progress' | 'history' | 'comments' | 'attachments'>('details');
   const [commentText, setCommentText] = useState<string>('');
   const [isInternalComment, setIsInternalComment] = useState<boolean>(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Action Modals State
   const [actionType, setActionType] = useState<
@@ -136,6 +141,42 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
       loadTicket();
     } catch (err: any) {
       setActionError(err.message || 'Failed to post comment');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      const uploadRes: any = await ApiClient.uploadAttachment(file);
+      if (uploadRes?.data) {
+        await ApiClient.addTicketAttachment(ticketId, {
+          filename: uploadRes.data.filename,
+          filepath: uploadRes.data.filepath,
+          mimeType: uploadRes.data.mimeType,
+          size: uploadRes.data.size,
+        });
+        await loadTicket();
+        onTicketUpdated();
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Failed to upload attachment');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!confirm('Are you sure you want to delete this attachment?')) return;
+    try {
+      await ApiClient.deleteTicketAttachment(ticketId, attachmentId);
+      await loadTicket();
+      onTicketUpdated();
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to delete attachment');
     }
   };
 
@@ -430,6 +471,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
             { id: 'progress', label: `Progress Events (${ticket.progressEvents?.length || 0})` },
             { id: 'history', label: `Audit Trail (${ticket.statusHistories?.length || 0})` },
             { id: 'comments', label: `Discussion & Notes (${ticket.comments?.length || 0})` },
+            { id: 'attachments', label: `Attachments (${ticket.attachments?.length || 0})` },
           ].map((t) => (
             <button
               key={t.id}
@@ -627,6 +669,92 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {activeTab === 'attachments' && (
+            <div className="space-y-4">
+              {/* Upload Dropzone */}
+              <div className="p-5 border-2 border-dashed border-gray-200 rounded-xl hover:border-blue-400 transition-colors bg-gray-50/50 flex flex-col items-center justify-center text-center">
+                <UploadCloud className="w-8 h-8 text-blue-500 mb-2" />
+                <p className="font-semibold text-gray-700 text-xs">Upload Photo or Document Attachment</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Supports JPEG, PNG, WEBP, GIF, HEIC, PDF (Max 10MB)</p>
+                <label className="mt-3 btn-primary py-1.5 px-4 text-xs cursor-pointer inline-flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5" />
+                  {isUploading ? 'Uploading...' : 'Choose File'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    disabled={isUploading}
+                    accept="image/*,.pdf"
+                    onChange={handleFileUpload}
+                  />
+                </label>
+                {uploadError && <p className="text-red-600 text-xs mt-2">{uploadError}</p>}
+              </div>
+
+              {/* Attachments List */}
+              <div className="space-y-2">
+                {!ticket.attachments || ticket.attachments.length === 0 ? (
+                  <p className="text-gray-400 text-xs text-center py-6">No attachments uploaded for this ticket yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {ticket.attachments.map((att: any) => {
+                      const isImage = att.mimeType?.startsWith('image/');
+                      const fileUrl = att.filepath?.startsWith('http')
+                        ? att.filepath
+                        : `/uploads/attachments/${att.filepath}`;
+
+                      return (
+                        <div
+                          key={att.id}
+                          className="p-3 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow transition-shadow flex items-start gap-3"
+                        >
+                          {isImage ? (
+                            <img
+                              src={fileUrl}
+                              alt={att.filename}
+                              className="w-14 h-14 object-cover rounded-lg bg-gray-100 border flex-shrink-0"
+                              onError={(e: any) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-14 h-14 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold text-xs">
+                              PDF
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-800 text-xs truncate" title={att.filename}>
+                              {att.filename}
+                            </p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {(att.size / 1024).toFixed(1)} KB • {new Date(att.createdAt).toLocaleDateString()}
+                            </p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <a
+                                href={fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-600 hover:underline text-[11px] font-medium"
+                              >
+                                View full
+                              </a>
+                              <span className="text-gray-300">•</span>
+                              <button
+                                onClick={() => handleDeleteAttachment(att.id)}
+                                className="text-red-500 hover:text-red-700 text-[11px] flex items-center gap-0.5"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

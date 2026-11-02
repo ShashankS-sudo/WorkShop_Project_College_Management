@@ -10,6 +10,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { styles, getStageCountdown, colors } from '../styles/theme';
 import { Ticket, User } from '../types';
@@ -152,6 +153,52 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                   👍 I am affected by this issue ({ticket._count?.endorsements || 0})
                 </Text>
               </TouchableOpacity>
+
+              {/* Attachments Section */}
+              {ticket.attachments && ticket.attachments.length > 0 && (
+                <View style={[styles.metaCard, { marginTop: 12 }]}>
+                  <Text style={[styles.metaLabel, { marginBottom: 8, fontSize: 13 }]}>
+                    Photo & Document Attachments ({ticket.attachments.length})
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {ticket.attachments.map((att: any) => {
+                      const isImg = att.mimeType?.startsWith('image/');
+                      const imgUri = att.filepath?.startsWith('http')
+                        ? att.filepath
+                        : `http://localhost:3000/uploads/attachments/${att.filepath}`;
+                      return (
+                        <View key={att.id} style={{ marginRight: 10, alignItems: 'center', width: 90 }}>
+                          {isImg ? (
+                            <Image
+                              source={{ uri: imgUri }}
+                              style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: '#f3f4f6' }}
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                width: 80,
+                                height: 80,
+                                borderRadius: 8,
+                                backgroundColor: '#e0f2fe',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>PDF</Text>
+                            </View>
+                          )}
+                          <Text
+                            numberOfLines={1}
+                            style={{ fontSize: 11, color: '#4b5563', marginTop: 4, textAlign: 'center' }}
+                          >
+                            {att.filename}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
 
               {/* Resolution Box & Reopening Workflow */}
               {ticket.status === 'RESOLVED' && (

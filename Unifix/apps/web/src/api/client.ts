@@ -35,9 +35,13 @@ export class ApiClient {
     const token = this.getAccessToken();
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
     };
+
+    // Only set application/json if not sending FormData
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (token && !headers['Authorization']) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -213,6 +217,45 @@ export class ApiClient {
     return this.request(`/tickets/${ticketId}/comments`, {
       method: 'POST',
       body: JSON.stringify({ content, isInternal }),
+    });
+  }
+
+  // Attachment & Media Methods
+  static async uploadAttachment(file: File | Blob, originalFilename?: string, folder = 'tickets') {
+    const formData = new FormData();
+    formData.append('file', file, originalFilename || (file as File).name || 'upload.jpg');
+    formData.append('folder', folder);
+
+    return this.request('/tickets/attachments/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  static async getPresignedUploadUrl(filename: string, mimeType: string, folder = 'tickets') {
+    return this.request('/tickets/attachments/presign', {
+      method: 'POST',
+      body: JSON.stringify({ filename, mimeType, folder }),
+    });
+  }
+
+  static async getTicketAttachments(ticketId: string) {
+    return this.request(`/tickets/${ticketId}/attachments`);
+  }
+
+  static async addTicketAttachment(
+    ticketId: string,
+    attachment: { filename: string; filepath: string; mimeType: string; size: number }
+  ) {
+    return this.request(`/tickets/${ticketId}/attachments`, {
+      method: 'POST',
+      body: JSON.stringify(attachment),
+    });
+  }
+
+  static async deleteTicketAttachment(ticketId: string, attachmentId: string) {
+    return this.request(`/tickets/${ticketId}/attachments/${attachmentId}`, {
+      method: 'DELETE',
     });
   }
 
