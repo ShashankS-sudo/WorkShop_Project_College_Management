@@ -1,0 +1,2526 @@
+# UNIFIX — MASTER PROJECT SPECIFICATION AND DEVELOPMENT DIRECTIVE
+
+## 1. YOUR ROLE
+
+You are the lead software architect, senior full-stack engineer, database designer, security engineer, AI integration engineer, and development coordinator responsible for building **Unifix**.
+
+You are working inside a local project folder named `Unifix`.
+
+Your objective is to design and implement a complete, modular, maintainable, production-oriented campus issue-management platform serving approximately 20–30 campuses across multiple locations worldwide.
+
+This is a real software project, not a prototype intended to be discarded.
+
+You must build the application incrementally, verify that the components integrate correctly, document architectural decisions, and maintain enough persistent project state that another agent session can resume development after a crash or context loss.
+
+### Development environment
+
+- Coding agent: Pi Agent.
+- Development approach: subagent-driven development.
+- Workflow: use the available Obra/Superpowers skills and workflows where appropriate.
+- Project directory: the current `Unifix` directory.
+- Version control: Git.
+- Remote repository: GitHub, private by default.
+- Mobile platform: Android initially.
+- Mobile framework: React Native with Expo and TypeScript.
+- Web framework: React with TypeScript.
+- Backend: Node.js, Express, and TypeScript.
+- ORM: Prisma.
+- Database: Supabase PostgreSQL.
+- File storage: private Supabase Storage.
+- AI inference: a remotely hosted, OpenAI-compatible LLM endpoint, likely served by Ollama or a similar inference server on a cloud GPU.
+
+Do not assume every tool is installed or configured. Inspect the environment first.
+
+---
+
+# 2. OPERATING RULES — FOLLOW THESE THROUGHOUT DEVELOPMENT
+
+## 2.1 Inspect before modifying
+
+Before creating or changing files:
+
+1. Inspect the current directory.
+2. Check whether the directory already contains code, documentation, configuration, or Git history.
+3. Inspect existing files before replacing them.
+4. Identify installed development tools and their versions.
+5. Check Git status and recent commits if Git is already initialized.
+6. Identify missing prerequisites and external configuration requirements.
+7. Read all existing Unifix project notes and recovery files if they exist.
+
+Never overwrite existing work simply because you prefer a different initial structure.
+
+If the folder contains an existing implementation, understand it before making architectural changes.
+
+## 2.2 Work in phases
+
+Do not attempt to generate the entire project in a single enormous operation.
+
+First establish the architecture, interfaces, database model, and implementation plan. Then implement the system in coherent, independently manageable modules.
+
+Each phase must produce actual files or a clearly documented prerequisite—not merely a plan.
+
+Do not stop after producing a scaffold and claim that the application is complete.
+
+## 2.3 Ask questions when necessary
+
+You have permission to make reasonable engineering decisions within this specification.
+
+However, ask me when an unresolved decision materially affects:
+
+- Product behavior.
+- Security or privacy.
+- Database architecture.
+- External infrastructure.
+- Paid services or subscriptions.
+- Public deployment.
+- Irreversible changes.
+- Data deletion or migration.
+- Public GitHub repository visibility.
+- Production credentials or secrets.
+
+Do not ask me to decide trivial implementation details that a competent engineer should determine independently.
+
+When blocked, explain the missing information, why it matters, and exactly what I need to provide.
+
+Use sensible development defaults wherever possible so work can continue without unnecessary interruptions.
+
+## 2.4 Use subagents intelligently
+
+Use Pi Agent's subagent-driven development capabilities and Obra/Superpowers workflows when they are available and suitable.
+
+Potential specialist roles:
+
+1. **Architecture specialist:** project structure, module boundaries, API contracts.
+2. **Database specialist:** Prisma schema, relationships, constraints, migrations.
+3. **Backend specialist:** Express routes, services, authorization, authentication.
+4. **Mobile specialist:** React Native application and mobile workflows.
+5. **Web specialist:** management dashboard and supermanagement interfaces.
+6. **AI specialist:** LLM adapter, issue parsing, similarity analysis, analytics.
+7. **Integration reviewer:** cross-module consistency, security review, and integration checks.
+
+These are responsibilities, not necessarily separate agents for every task.
+
+Delegate only when the work can be separated safely. Establish contracts before parallel implementation.
+
+The main agent remains responsible for:
+
+- Overall architecture.
+- Shared types and interfaces.
+- Integration.
+- Resolving conflicting implementations.
+- Database and API consistency.
+- Security boundaries.
+- Final project state.
+
+If the installed agent environment cannot perform a particular subagent workflow, execute the same process sequentially. Never claim to have launched a subagent if you did not.
+
+## 2.5 Do not sacrifice modularity for speed
+
+Organize code around clear responsibilities.
+
+Avoid:
+
+- A giant Express route file.
+- A single component containing the entire web application.
+- Database queries scattered throughout UI components.
+- Business rules duplicated across clients.
+- Repeating authorization checks inconsistently.
+- Mixing LLM-specific behavior into ticket-management business logic.
+- Hard-coded campus-specific behavior.
+- Circular dependencies.
+- Unnecessary microservices.
+
+Use a modular monolith unless a demonstrated requirement justifies a more complex architecture.
+
+Do not introduce Redis, message brokers, Kubernetes, or additional infrastructure without a concrete need.
+
+## 2.6 Maintain persistent recovery state
+
+The development process must survive context loss, agent restarts, and crashes.
+
+Create and maintain this directory:
+
+`agent-work/`
+
+It must contain:
+
+- `CURRENT_STATE.md`
+- `TASKS.md`
+- `DECISIONS.md`
+- `CHANGELOG.md`
+- `logs/`
+
+You may add architecture diagrams, API contracts, implementation plans, or other supporting documents.
+
+### CURRENT_STATE.md
+
+Record:
+
+- Current project phase.
+- What currently works.
+- What has actually been implemented.
+- What has been verified.
+- What remains incomplete.
+- Current blockers.
+- Most recent relevant Git commit.
+- Files changed during the latest work.
+- Exact next action.
+- Commands needed to resume.
+- Any warnings or known regressions.
+
+### TASKS.md
+
+Maintain a phased task list with clear states:
+
+- Not started.
+- In progress.
+- Blocked.
+- Implemented.
+- Verified.
+
+Do not mark a task as verified simply because files were generated.
+
+### DECISIONS.md
+
+Record important architectural decisions and their rationale.
+
+Examples include authentication design, ticket lifecycle, database relationships, AI provider abstraction, authorization rules, and deployment assumptions.
+
+### CHANGELOG.md
+
+Record meaningful implementation changes, migrations, new endpoints, bug fixes, and architectural modifications.
+
+### logs/
+
+Store useful development logs, command outputs, error summaries, and recovery notes.
+
+Avoid filling the repository with enormous repetitive logs. Preserve relevant diagnostics.
+
+### Mandatory checkpoint procedure
+
+After each meaningful implementation task:
+
+1. Update `CURRENT_STATE.md`.
+2. Update `TASKS.md`.
+3. Update `CHANGELOG.md`.
+4. Update `DECISIONS.md` if a decision changed.
+5. Record relevant failures or verification results.
+6. Review Git status.
+
+Before a long operation, risky migration, or major architectural change, record a checkpoint.
+
+When starting a new agent session or recovering after a crash:
+
+1. Read `CURRENT_STATE.md`.
+2. Read `TASKS.md` and relevant entries in `DECISIONS.md`.
+3. Inspect the latest development logs.
+4. Inspect Git status and recent commits.
+5. Examine the actual code before assuming a previous task succeeded.
+6. Resume from the last verified state.
+
+Clearly distinguish attempted work from completed work.
+
+Never assume an interrupted operation completed successfully.
+
+---
+
+# 3. PRODUCT OVERVIEW
+
+Unifix is a centralized issue-reporting and issue-management platform for approximately 20–30 campuses.
+
+Students, teachers, administrative staff, maintenance personnel, and other authorized campus users must be able to report problems.
+
+Campus management must be able to review, acknowledge, assign, prioritize, track, resolve, and close issues.
+
+Supermanagement must have a global view across every authorized campus, including cross-campus statistics, historical records, recurring issues, and AI-assisted insights.
+
+The product must support both:
+
+1. A mobile application for ordinary campus users.
+2. A web management application for campus management and supermanagement.
+
+Both clients use the same trusted backend.
+
+## Primary objectives
+
+- Make issue reporting easy for nontechnical users.
+- Support both manual and AI-assisted reporting.
+- Prevent duplicate reports from unnecessarily fragmenting the workload.
+- Track every meaningful status change.
+- Escalate neglected tickets automatically.
+- Maintain complete historical records.
+- Enforce campus-level data isolation.
+- Provide authorized global oversight.
+- Use AI to extract structured information and identify patterns.
+- Remain functional when AI services are unavailable.
+- Keep the system modular enough to extend over time.
+
+---
+
+# 4. TECHNOLOGY STACK
+
+Use the following stack unless a genuine compatibility issue requires a documented alternative.
+
+## Mobile
+
+- React Native.
+- Expo.
+- TypeScript.
+- Expo Router where appropriate.
+- A maintained API client.
+- Secure device storage for authentication credentials.
+- React Native-compatible component and animation libraries.
+- A shared design system.
+
+The mobile application must eventually be buildable as an Android APK.
+
+Develop the application before requiring me to install and configure Android Studio. Android Studio and final Android build setup belong near the end of the initial development process.
+
+You may use Expo tooling earlier if it is available and useful, but do not make Android Studio installation a prerequisite for implementing the backend or web application.
+
+## Web
+
+- React.
+- TypeScript.
+- A maintained build tool such as Vite.
+- React Router or an equivalent routing solution.
+- A server-state/data-fetching library where appropriate.
+- A consistent form-validation strategy.
+- A reusable component system.
+
+The same web application should provide role-appropriate interfaces for campus managers and supermanagement.
+
+## Backend
+
+- Node.js.
+- Express.
+- TypeScript.
+- Prisma ORM.
+- Zod for runtime validation.
+- A maintained logging solution.
+- Structured error handling.
+- A documented REST API.
+- OpenAPI documentation where practical.
+
+Use a currently supported Node.js LTS release compatible with the selected dependencies. Inspect the environment and confirm the appropriate version rather than blindly assuming an installed version is suitable.
+
+## Database and storage
+
+- Supabase PostgreSQL.
+- Prisma migrations.
+- Supabase Storage for private file storage.
+
+The backend must be the trusted boundary between clients and protected database operations.
+
+Mobile and web clients must not receive unrestricted database credentials.
+
+## Development tools
+
+- Git.
+- GitHub.
+- npm or another compatible package manager, selected consistently.
+- Environment-variable configuration.
+- Formatting and linting.
+- TypeScript checks.
+- Basic integration and smoke checks.
+
+Testing is not the main focus of this project. Prioritize actual implementation, working workflows, integration, and usability. Nevertheless, perform practical verification before declaring features complete.
+
+Do not build an enormous test suite before delivering useful functionality.
+
+---
+
+# 5. ARCHITECTURE AND REPOSITORY STRUCTURE
+
+Use a modular monorepo unless inspection reveals a strong reason not to.
+
+A suggested structure is:
+
+```text
+Unifix/
+├── apps/
+│   ├── mobile/
+│   └── web/
+├── services/
+│   └── api/
+├── packages/
+│   ├── shared-types/
+│   ├── shared-schemas/
+│   └── shared-config/
+├── prisma/
+│   ├── schema.prisma
+│   ├── migrations/
+│   └── seed.ts
+├── docs/
+│   ├── architecture.md
+│   ├── database.md
+│   ├── api.md
+│   ├── security.md
+│   ├── setup.md
+│   └── deployment.md
+├── agent-work/
+│   ├── CURRENT_STATE.md
+│   ├── TASKS.md
+│   ├── DECISIONS.md
+│   ├── CHANGELOG.md
+│   └── logs/
+├── .env.example
+├── .gitignore
+├── README.md
+└── package.json
+```
+
+Treat this as a starting point, not a requirement to create unnecessary packages.
+
+The final structure must be coherent, with consistent import paths and scripts.
+
+## Backend module boundaries
+
+At minimum, separate the following responsibilities:
+
+- Authentication.
+- Users and memberships.
+- Campus registry.
+- Campus identity verification.
+- Departments.
+- Locations.
+- Categories.
+- Tickets.
+- Ticket status history.
+- Ticket assignments.
+- Ticket endorsements.
+- Comments.
+- Attachments.
+- Priorities.
+- Escalation and scheduling.
+- Notifications.
+- Audit logging.
+- AI-assisted reporting.
+- AI similarity analysis.
+- Supermanagement analytics.
+- Health checks and system configuration.
+
+Within modules, separate routes/controllers, validation schemas, business services, database access where useful, and authorization policies.
+
+Do not create abstractions without a practical purpose.
+
+---
+
+# 6. USER ROLES AND AUTHORIZATION
+
+There are three broad access layers.
+
+## Role 1: Ordinary campus users
+
+This category includes:
+
+- Students.
+- Teachers.
+- Administrative staff.
+- Maintenance workers.
+- Other authorized campus members.
+
+They use the mobile application to report issues, view relevant tickets, endorse existing reports, comment where permitted, receive notifications, and track their own submissions.
+
+The precise capabilities can depend on membership permissions, but the initial product must remain simple.
+
+## Role 2: Campus management
+
+Campus management can manage tickets and authorized campus data for its own campus.
+
+Typical capabilities include:
+
+- View campus tickets.
+- See reporter identity, including for anonymous reports.
+- Review new reports.
+- Acknowledge issues.
+- Assign departments or responsible personnel.
+- Change status.
+- Set or override priority.
+- Add management comments.
+- Update progress.
+- Mark tickets resolved or closed.
+- Mark genuine duplicates.
+- Review ticket history.
+- View campus statistics.
+- Receive escalation alerts.
+- Manage authorized campus-specific categories, locations, and departments where permitted.
+
+Campus managers must not access another campus's data merely by modifying a URL or request parameter.
+
+## Role 3: Supermanagement
+
+Supermanagement represents the organization owner or global administrative authority.
+
+It must provide a global view of all authorized campuses.
+
+Capabilities include:
+
+- View all campuses.
+- Review tickets across campuses.
+- Inspect ticket details and histories.
+- See reporter identity when authorized.
+- Compare campus performance.
+- Identify overdue and critical issues.
+- Identify recurring issues across campuses.
+- Analyze department backlogs.
+- Examine resolution times.
+- Review escalation activity.
+- View global statistics.
+- Receive AI-assisted analytical recommendations.
+- Configure authorized global settings.
+
+Global access must be implemented through explicit authorization policies, not merely through frontend navigation.
+
+## Authorization rules
+
+Implement server-side authorization for every protected operation.
+
+Check:
+
+1. Authenticated user.
+2. Active account.
+3. Active campus membership where required.
+4. Appropriate role or permission.
+5. Campus scope.
+6. Resource ownership or other relevant policy.
+7. Access to sensitive fields.
+
+Do not rely on hidden buttons, client-side role checks, or obscured URLs.
+
+Create a centralized authorization layer or equivalent reusable policies.
+
+Use explicit permission checks for sensitive operations.
+
+Record significant administrative actions in an audit log.
+
+---
+
+# 7. CAMPUS REGISTRY AND IDENTITY VERIFICATION
+
+The system must support multiple campuses, each with its own authorized users and operational data.
+
+Create a proper campus registry in PostgreSQL.
+
+A campus should have fields such as:
+
+- UUID.
+- Name.
+- Unique campus code.
+- Location or region.
+- Time zone.
+- Active/inactive status.
+- Created and updated timestamps.
+
+Do not hard-code the campus list into frontend source code.
+
+## Authorized identity registry
+
+Create a normalized database structure for campus-authorized identities.
+
+For example, Campus A may contain authorized identities for several students, teachers, administrators, and maintenance workers.
+
+An authorized identity may contain:
+
+- Campus ID.
+- Normalized email address, if available.
+- Normalized phone number, if available.
+- Display name.
+- Optional external student or employee identifier.
+- Expected membership role.
+- Active/inactive status.
+- Verification or provisioning metadata.
+- Creation and update timestamps.
+
+Use appropriate unique constraints and indexes.
+
+Avoid duplicating the same identity information across unrelated records.
+
+An authorized identity is a registry entry used to determine eligibility. It is not itself proof that a person controls the associated email address or phone number.
+
+## Verification workflow
+
+The initial onboarding flow should:
+
+1. Allow the user to select a campus.
+2. Accept an authorized email address or phone number.
+3. Normalize the supplied identifier.
+4. Check the campus's authorized identity registry.
+5. Reject unknown or inactive identities.
+6. Continue through the configured OTP simulation.
+7. Establish the authenticated account and campus membership.
+8. Issue authentication credentials only after successful verification.
+
+The backend must perform these checks.
+
+Do not trust a client-supplied campus ID, role, name, or verification flag.
+
+## Seed data
+
+Create fictional seed data for development.
+
+Include multiple campuses and several authorized identities per campus.
+
+Never invent real people's personal information for production use.
+
+Seed data must be clearly identified as development data and must not accidentally become a production account registry.
+
+---
+
+# 8. AUTHENTICATION AND SESSION SECURITY
+
+The initial implementation must work without a paid email or SMS provider.
+
+## Simulated OTP
+
+Build a development OTP provider that supports the onboarding flow without sending actual email or SMS messages.
+
+The design must allow replacing the simulated provider with a real provider later.
+
+The interface should resemble a real verification flow, but must not falsely claim that a real message has been sent.
+
+Implement safe development behavior:
+
+- Simulated OTP delivery or clearly documented development display.
+- Expiration.
+- Verification-attempt limits.
+- Resend cooldown.
+- Rate limiting.
+- Account and identifier checks.
+- Protection against brute-force attempts.
+- Clear separation between development and production modes.
+
+Never silently enable a predictable development OTP in production.
+
+Do not commit real secrets.
+
+## Authentication tokens
+
+Use a secure session architecture appropriate for a mobile application and web dashboard.
+
+Implement:
+
+- Short-lived access tokens.
+- Refresh-token rotation.
+- Refresh-token revocation.
+- Server-side session tracking.
+- Logout.
+- Logout-all-sessions where appropriate.
+- Expiration checks.
+- Revocation after suspicious or invalid refresh behavior.
+- Secure storage on mobile.
+- Appropriate browser cookie and CSRF protections if refresh credentials are stored in cookies.
+
+If refresh tokens are opaque rather than JWTs, that is acceptable and may be preferable. Store only a secure hash of the refresh token or equivalent secret material in the database where applicable.
+
+Do not store long-lived authentication secrets in ordinary browser local storage.
+
+Document the authentication design.
+
+---
+
+# 9. DATABASE DESIGN
+
+Design a normalized, relational Prisma schema with UUID primary keys, appropriate foreign keys, indexes, unique constraints, and timestamps.
+
+The following entities should be considered.
+
+## Core entities
+
+- Campus.
+- User.
+- CampusMembership.
+- CampusAuthorizedIdentity.
+- Department.
+- Building.
+- Location.
+- Category.
+- Ticket.
+
+## Ticket collaboration and workflow
+
+- TicketEndorsement.
+- TicketComment.
+- Attachment.
+- TicketAssignment.
+- TicketStatusHistory.
+- TicketPriorityHistory.
+- TicketProgressEvent, or an equivalent structured progress-history model.
+- TicketEscalationEvent.
+
+## Platform infrastructure
+
+- Notification.
+- AuditLog.
+- RefreshSession.
+- UserNotificationPreference, if needed.
+- AIAnalysis or AIAnalysisResult, if persisted.
+- Additional configuration tables only where justified.
+
+## Important relationships
+
+A campus can have many memberships, departments, buildings, locations, categories, and tickets.
+
+A ticket belongs to one campus.
+
+A ticket may reference a reporter, location, category, and responsible department or assignee.
+
+A ticket has many status-history entries, comments, assignments, endorsements, attachments, and progress events.
+
+A ticket can reference a canonical ticket if management marks it as a duplicate.
+
+A user can have memberships in multiple campuses if that is permitted by the chosen identity model. The initial UI may select one active campus context at a time.
+
+## Ticket fields
+
+At minimum, support:
+
+- ID.
+- Campus ID.
+- Reporter user ID, where applicable.
+- Ticket type.
+- Title.
+- Description.
+- Category ID.
+- Location ID, if known.
+- User-provided location text, if applicable.
+- Severity.
+- Impact.
+- Urgency.
+- Suggested priority.
+- Official priority.
+- Status.
+- Anonymous flag.
+- Duplicate-of ticket ID, if applicable.
+- Created timestamp.
+- Updated timestamp.
+- Acknowledged timestamp.
+- Started timestamp.
+- Resolved timestamp.
+- Closed timestamp.
+- Resolution summary, where applicable.
+- Reopened timestamp or equivalent history event.
+
+Use nullable fields only when the lifecycle genuinely permits missing information.
+
+Do not treat a location guessed by AI as verified fact.
+
+## Initial enums
+
+Use enums or carefully constrained equivalent values for the following concepts.
+
+Ticket type:
+
+- `ISSUE`
+- `SERVICE_REQUEST`
+
+Severity:
+
+- `MINOR`
+- `MODERATE`
+- `MAJOR`
+- `CRITICAL`
+
+Impact:
+
+- `INDIVIDUAL`
+- `GROUP`
+- `BUILDING`
+- `CAMPUS`
+
+Urgency:
+
+- `LOW`
+- `NORMAL`
+- `HIGH`
+- `URGENT`
+
+Suggested priority and official priority:
+
+- `LOW`
+- `MEDIUM`
+- `HIGH`
+- `CRITICAL`
+
+Initial ticket statuses:
+
+- `OPEN`
+- `ACKNOWLEDGED`
+- `UNDER_REVIEW`
+- `ASSIGNED`
+- `IN_PROGRESS`
+- `WAITING`
+- `RESOLVED`
+- `CLOSED`
+- `REJECTED`
+- `DUPLICATE`
+
+Document the precise meaning and permitted transitions of every status.
+
+You may refine the model if needed, but record the reasoning and preserve the required behavior.
+
+## Database integrity
+
+Use transactions when several database changes must succeed together.
+
+Examples:
+
+- Creating a ticket and its initial status-history entry.
+- Changing a ticket status and creating its history event.
+- Updating official priority and recording the reason.
+- Reopening a ticket and creating its corresponding history entry.
+- Marking a ticket as a duplicate and updating the canonical relationship.
+
+Prevent inconsistent partial updates.
+
+Use database constraints for invariants that can be expressed at the database level.
+
+Do not rely solely on application code for uniqueness or referential integrity.
+
+## Historical data
+
+Do not delete tickets merely because they are resolved, closed, rejected, or marked duplicate.
+
+Historical tickets must remain accessible to authorized users.
+
+Preserve relevant status, assignment, priority, comment, escalation, and resolution history.
+
+Implement soft deletion or explicit archival only where there is a justified operational requirement. Historical records should not disappear from analytics simply because they leave the active queue.
+
+Define an appropriate retention and privacy policy before implementing any irreversible data-purging behavior.
+
+---
+
+# 10. TICKET REPORTING WORKFLOW
+
+Reporting must be simple enough for a nontechnical user.
+
+Support two reporting modes.
+
+## Mode A: Manual reporting
+
+A user should be able to create a ticket without interacting with AI.
+
+The manual flow should collect the information required by the selected ticket type, including as appropriate:
+
+- Short title.
+- Description.
+- Campus.
+- Location.
+- Category.
+- Severity.
+- Impact.
+- Urgency.
+- Optional attachments.
+- Anonymous reporting preference.
+
+Avoid requiring every field if the information is not necessary to submit an initial report.
+
+The backend must validate and normalize the submission.
+
+## Mode B: AI-assisted reporting
+
+A user describes the problem in natural language.
+
+Example:
+
+"The lights in the second-floor corridor of the library have not worked since yesterday."
+
+The mobile application sends the text to the Express backend.
+
+The backend sends the appropriate request to the configured LLM provider.
+
+The AI may:
+
+- Extract a suggested title.
+- Summarize the issue.
+- Suggest a category.
+- Extract the reported location.
+- Suggest severity.
+- Suggest impact.
+- Suggest urgency.
+- Identify missing information.
+- Ask relevant follow-up questions.
+- Identify uncertainty.
+- Suggest potentially related existing tickets.
+
+The AI must not invent facts.
+
+If the location is unclear, ask the user.
+
+If severity is unclear, request clarification or use a conservative, explicitly marked suggestion.
+
+Distinguish extracted facts from inferred recommendations.
+
+## Confirmation before submission
+
+The AI must never submit a ticket automatically.
+
+The workflow must be:
+
+1. User describes the issue.
+2. Backend requests structured AI analysis.
+3. AI returns proposed fields and missing-information questions.
+4. User answers follow-up questions as needed.
+5. User reviews and edits the proposed ticket.
+6. Backend validates the final fields.
+7. User explicitly confirms submission.
+8. Backend creates the ticket and initial history transactionally.
+9. The application displays the ticket ID and status.
+
+Manual reporting must always remain available.
+
+## Structured AI output
+
+Use a versioned, validated response schema.
+
+Prefer structured JSON output supported by the configured provider.
+
+Validate all AI responses with Zod or an equivalent strict schema.
+
+Handle:
+
+- Missing fields.
+- Unexpected fields.
+- Invalid enum values.
+- Malformed JSON.
+- Refusals.
+- Timeouts.
+- Empty responses.
+- Unsupported model capabilities.
+
+AI output is untrusted input. Never execute arbitrary code, SQL, shell commands, or database instructions generated by the model.
+
+---
+
+# 11. DUPLICATE AND SIMILARITY DETECTION
+
+Before a user submits a new report, the backend may request an AI-assisted similarity analysis.
+
+The system should retrieve an appropriately scoped set of candidate tickets and provide only the context necessary for comparison.
+
+Consider:
+
+- Similar descriptions.
+- Same or nearby location.
+- Same category.
+- Similar symptoms.
+- Current ticket status.
+- Whether the earlier issue is already resolved.
+- Recency.
+- Relevant campus boundaries.
+
+Do not compare or disclose tickets from unauthorized campuses.
+
+The AI should return ranked suggestions with explanations and uncertainty.
+
+For example:
+
+"This may be the same lighting problem already reported in the second-floor library corridor."
+
+The user must decide what to do.
+
+Possible actions:
+
+- Continue creating a new ticket.
+- Open the suggested existing ticket.
+- Select "I have this issue too."
+
+## Endorsements
+
+Selecting "I have this issue too" must create an endorsement or affected-user association with the existing ticket.
+
+Enforce uniqueness for a user-ticket pair.
+
+For example:
+
+`UNIQUE(ticket_id, user_id)`
+
+A repeated request must not inflate endorsement counts.
+
+Define whether the original reporter counts as one affected person and how endorsement totals are displayed. Keep affected-user counts consistent and transactionally safe.
+
+Do not automatically merge reports based solely on AI similarity.
+
+## Management duplicate handling
+
+Authorized management may mark a ticket as a genuine duplicate.
+
+Record:
+
+- Duplicate ticket ID.
+- Canonical ticket ID.
+- Acting manager.
+- Timestamp.
+- Optional reason.
+- Any permitted changes to assignments or notifications.
+
+Preserve the duplicate ticket and its history.
+
+A duplicate should not vanish from the historical record.
+
+---
+
+# 12. TICKET PRIORITY AND MANAGEMENT DECISIONS
+
+Keep AI-suggested priority separate from official management priority.
+
+Priority may consider:
+
+- Severity.
+- Urgency.
+- Impact level.
+- Number of affected users.
+- Criticality of the location.
+- Age of the ticket.
+- Time since the last meaningful progress update.
+- Whether the issue is overdue.
+- Whether the issue affects essential facilities or safety.
+
+Do not let a large number of minor endorsements automatically outrank a critical safety problem.
+
+Critical safety and infrastructure issues must remain visible even when they have few endorsements.
+
+Provide configurable rules rather than scattering fixed priority logic throughout the application.
+
+## Management override
+
+Campus management may override the suggested or current priority when authorized.
+
+Record:
+
+- Previous priority.
+- New priority.
+- Actor.
+- Timestamp.
+- Reason.
+- Relevant audit metadata.
+
+The AI can recommend a priority, but management remains responsible for official priority decisions.
+
+Provide an explainable summary of why a ticket is ranked highly.
+
+Do not let AI independently lower or dismiss critical reports without authorized human review.
+
+---
+
+# 13. TICKET LIFECYCLE AND THREE-WEEK ESCALATION
+
+This is a core feature. Implement it as a first-class backend workflow, not a frontend timer.
+
+## 13.1 Required behavior
+
+The escalation clock begins when a ticket is created.
+
+If the ticket's current progress stage remains unchanged for 21 days, the system must issue a management alert.
+
+The same rule applies to subsequent stages.
+
+Example:
+
+1. A ticket is created as `OPEN`.
+2. It remains `OPEN` for 21 days.
+3. The system alerts management that the ticket has not been acknowledged or progressed.
+4. A manager acknowledges it, changing the status to `ACKNOWLEDGED`.
+5. The stage timer restarts.
+6. If it remains `ACKNOWLEDGED` for another 21 days, the system sends another management warning.
+7. The manager assigns it or changes it to `IN_PROGRESS`.
+8. A new stage timer begins.
+9. If the ticket remains in that stage without meaningful progress for 21 days, the system sends another escalation.
+10. The same principle continues until the issue is resolved, closed, rejected through a valid workflow, or otherwise reaches a documented terminal state.
+
+Do not treat a status update as proof that meaningful work occurred.
+
+A manager must not be able to bypass escalation indefinitely by repeatedly changing a status without documenting actual progress.
+
+## 13.2 Define meaningful progress
+
+Implement a structured progress event or equivalent model.
+
+Meaningful progress may include:
+
+- Acknowledgement by responsible management.
+- Assignment to a responsible department or person.
+- A documented investigation update.
+- A documented maintenance action.
+- A change in operational state.
+- A justified transition to waiting, including the reason and expected next action.
+- A documented resolution attempt.
+
+A generic comment such as "still checking" must not automatically reset every escalation clock forever.
+
+Define which events restart a stage timer and which merely add information to the ticket history.
+
+Record the event type, actor, timestamp, and relevant details.
+
+## 13.3 Stage-specific escalation
+
+Maintain explicit escalation rules.
+
+At minimum:
+
+- Ticket creation starts the first timer.
+- Every meaningful status-stage transition starts the next stage timer.
+- If a stage remains unchanged for 21 days, alert management.
+- After an escalation, further escalation behavior must be explicit and configurable.
+- Meaningful progress must update the appropriate timer according to the rules.
+- Resolved, closed, and other terminal states must not continue generating ordinary overdue alerts.
+- Reopening must reactivate the appropriate workflow and timer.
+
+Do not accidentally reset the timer when editing an unrelated ticket field.
+
+Do not reset it because of an automated background update.
+
+## 13.4 Critical issues
+
+Critical issues must have shorter escalation periods than ordinary issues.
+
+Implement a configurable escalation policy based on severity or official priority.
+
+Do not hard-code a collection of unexplained numbers throughout the codebase.
+
+Use centralized configuration or database-backed policy records.
+
+Choose sensible initial defaults, document them, and make them configurable by authorized administrators.
+
+If an issue involves immediate danger, show appropriate safety guidance and make the urgent reporting route clear. The platform must not represent an AI-generated severity estimate as a verified safety assessment.
+
+## 13.5 Notifications
+
+Escalations must notify management.
+
+When a ticket has not been resolved or has failed to progress according to the escalation policy, also notify the original reporter as specified by the applicable policy.
+
+For anonymous reports, the notification must not disclose the reporter's identity to ordinary users.
+
+Notifications should identify:
+
+- Ticket ID.
+- Current status.
+- Time spent in the current stage.
+- Reason for escalation.
+- Last meaningful progress event.
+- Responsible department or assignee, if known.
+- Required management action.
+
+Implement an in-app notification system initially.
+
+Design the notification layer so email, push notifications, or other channels can be added later without rewriting ticket business logic.
+
+Do not pretend an external notification has been delivered if no provider is configured.
+
+## 13.6 Reliable background processing
+
+The escalation system must run independently of whether a user has the app open.
+
+Implement a reliable scheduled background process suitable for the initial architecture.
+
+It may use a scheduler within the backend deployment, provided the deployment is designed to keep that scheduler running. If the deployment model cannot guarantee that, document and implement an appropriate separate scheduling mechanism.
+
+Use database-backed processing, idempotency, or equivalent safeguards so that:
+
+- The same escalation is not repeatedly created on every scheduler run.
+- Multiple scheduler executions do not produce duplicate notifications.
+- A crash does not silently lose overdue tickets.
+- Retrying a failed operation is safe.
+- Escalation history remains auditable.
+
+Do not add Redis or a distributed job system without demonstrating why the simpler approach is insufficient.
+
+## 13.7 Resolved and historical tickets
+
+When an issue is resolved:
+
+- Record the resolution timestamp.
+- Record the resolution summary.
+- Record who resolved it.
+- Preserve all earlier history.
+- Remove it from the active-work queue.
+- Keep it searchable in historical records.
+- Keep it available for authorized analytics.
+- Stop ordinary stage-escalation alerts.
+
+When a resolved issue is reopened:
+
+- Record the actor and reason.
+- Preserve the previous resolution.
+- Create a new history event.
+- Return it to the active workflow.
+- Restart the appropriate escalation clock.
+- Notify relevant users and management according to policy.
+
+"Cleared" means removed from the active queue, not deleted from the database.
+
+Resolved, closed, rejected, and duplicate tickets must remain available in authorized historical views.
+
+## 13.8 Reporter reopening
+
+The original reporter must be able to request reopening when an issue was marked resolved but the problem remains unsolved.
+
+Implement a controlled workflow:
+
+- The reporter can submit a reopen request with a reason.
+- The system records the request.
+- The ticket can be reopened according to the configured policy.
+- Management receives a notification.
+- The original history remains intact.
+
+If the policy allows immediate reporter-initiated reopening, record the action and notify management. If the policy requires review, display the request as pending.
+
+Choose and document a coherent initial policy. Do not silently discard reopening requests.
+
+---
+
+# 14. MANAGEMENT DASHBOARD
+
+Build a polished, responsive management website.
+
+The website may eventually be deployed on a separate administrator subdomain, such as:
+
+`admin.unifix.example`
+
+This is an illustrative hostname, not an actual domain.
+
+The management application and ordinary mobile application must share the same backend.
+
+The admin subdomain must not be treated as a security boundary. Authentication, role checks, campus scoping, and field-level authorization remain mandatory.
+
+## Core management screens
+
+### Dashboard
+
+Display:
+
+- New tickets.
+- Open tickets.
+- Acknowledged tickets.
+- In-progress tickets.
+- Waiting tickets.
+- Resolved tickets.
+- Overdue tickets.
+- Critical tickets.
+- Recent activity.
+- Escalations requiring action.
+
+### Ticket queue
+
+Support:
+
+- Search.
+- Filtering by status.
+- Filtering by category.
+- Filtering by department.
+- Filtering by location.
+- Filtering by severity and priority.
+- Filtering by age and overdue status.
+- Sorting.
+- Pagination.
+- Clear active-versus-historical views.
+
+### Ticket detail
+
+Display:
+
+- Title and description.
+- Campus and location.
+- Category.
+- Severity, impact, urgency, and priority.
+- Reporter identity for authorized managers.
+- Anonymous-reporting indicator.
+- Attachments.
+- Comments.
+- Endorsement count.
+- Assignment.
+- Status history.
+- Priority history.
+- Progress history.
+- Escalation history.
+- Resolution information.
+- Reopening requests.
+
+Provide clear actions appropriate to the user's permissions.
+
+### Assignment and progress
+
+Allow authorized managers to:
+
+- Acknowledge tickets.
+- Assign a department or person.
+- Change status.
+- Add structured progress updates.
+- Record waiting reasons.
+- Update priority with a reason.
+- Resolve tickets with a summary.
+- Close tickets according to the permitted workflow.
+- Mark duplicates.
+- Reopen tickets when authorized.
+
+### Historical records
+
+Provide search and filtering for past tickets.
+
+Management must be able to inspect previously resolved issues and understand how they were handled.
+
+### Statistics
+
+Provide practical charts and tables for:
+
+- Ticket volume.
+- Status distribution.
+- Resolution time.
+- Overdue percentage.
+- Recurring categories.
+- Department workload.
+- Critical issue counts.
+- Campus-level trends.
+
+Avoid misleading statistics caused by duplicate tickets, reopened tickets, missing timestamps, or inconsistent status definitions.
+
+Document the metric definitions.
+
+---
+
+# 15. SUPERmanagement DASHBOARD AND AI INSIGHTS
+
+Supermanagement must have a dedicated global oversight experience.
+
+It should be possible to inspect individual campuses and compare them without requiring access to each campus account separately.
+
+## Global dashboard
+
+Display:
+
+- Total campuses.
+- Active campuses.
+- Ticket volume.
+- Active ticket count.
+- Critical issues.
+- Overdue tickets.
+- Escalation counts.
+- Resolution performance.
+- Campus comparisons.
+- Recurring issues.
+- Department workload.
+- Recent important events.
+
+Provide filters for date ranges, campuses, categories, statuses, and other relevant dimensions.
+
+## AI-assisted insights
+
+The system should help supermanagement understand patterns that are difficult to identify manually.
+
+Examples:
+
+1. Which campuses have the largest unresolved backlogs?
+2. Which campuses have the longest resolution times?
+3. Which departments consistently accumulate overdue tickets?
+4. Which locations experience repeated infrastructure problems?
+5. Are similar issues appearing across several campuses?
+6. Which critical issues require immediate managerial attention?
+7. Which categories are increasing in frequency?
+8. Where might additional staff, maintenance resources, or equipment be useful?
+9. Are certain ticket types repeatedly reopened after resolution?
+10. Which issues show persistent lack of meaningful progress?
+
+## AI insight architecture
+
+The backend must retrieve authorized, relevant data and construct the analysis request.
+
+The LLM must not receive unrestricted database credentials.
+
+Do not expose the complete database or unnecessary personal information to the model.
+
+Use aggregation and minimization where possible.
+
+The AI should produce:
+
+- An insight or recommendation.
+- Supporting figures.
+- Relevant campuses or departments.
+- The observation period.
+- Important caveats.
+- A confidence or uncertainty indicator where meaningful.
+- The time at which the analysis was generated.
+
+Separate observed facts from AI interpretations.
+
+For example:
+
+**Observed fact:** Campus A has 42 unresolved maintenance tickets, 12 of which have exceeded the configured escalation threshold.
+
+**AI recommendation:** Review maintenance staffing and assignment delays at Campus A.
+
+Do not present the recommendation as a proven causal conclusion.
+
+Do not let AI insights automatically reassign tickets, change official priorities, close tickets, or perform administrative actions.
+
+Use on-demand or appropriately cached insights initially. Avoid expensive background LLM calls without a clear benefit.
+
+---
+
+# 16. LLM INTEGRATION — OPENAI-COMPATIBLE ENDPOINT
+
+I intend to run a local model on a cloud GPU using an inference server such as Ollama or a compatible alternative.
+
+The model may be from the Qwen family or another instruction-following model.
+
+The exact provider and model are not yet fixed.
+
+The backend must therefore implement a provider-independent AI abstraction.
+
+## AI provider interface
+
+Define a common interface for:
+
+- Issue parsing.
+- Follow-up question generation.
+- Similarity analysis.
+- Structured summarization.
+- Priority suggestions.
+- Global analytical insights.
+
+Do not make the rest of the application depend directly on a specific model vendor.
+
+Provide:
+
+1. An OpenAI-compatible HTTP provider.
+2. A deterministic mock provider for development.
+3. A clear configuration mechanism for selecting the provider.
+
+The mock provider must not pretend to perform genuine LLM inference. Its development-only status must be clear.
+
+## Configuration
+
+Support configuration through environment variables, for example:
+
+```dotenv
+AI_PROVIDER=mock
+AI_BASE_URL=
+AI_API_KEY=
+AI_MODEL=
+AI_TIMEOUT_MS=30000
+AI_MAX_RETRIES=1
+AI_ENABLED=true
+```
+
+Use the appropriate settings for the selected client library.
+
+Do not assume every OpenAI-compatible endpoint implements every OpenAI feature.
+
+Test the provider's supported request and response formats.
+
+For a typical local inference server, the endpoint may resemble:
+
+`http://your-llm-server:11434/v1`
+
+This is only an example. Do not hard-code it.
+
+Do not assume the server is publicly accessible or that the example endpoint is the actual configured endpoint.
+
+## Request behavior
+
+The backend should:
+
+1. Authenticate and authorize the user.
+2. Validate the request.
+3. Retrieve the minimum necessary context.
+4. Construct a server-controlled prompt.
+5. Call the configured model.
+6. Apply timeouts and retry limits.
+7. Validate the response.
+8. Return a safe, structured result.
+
+Never allow the client to override trusted system instructions or arbitrary backend configuration.
+
+Treat user-supplied descriptions, retrieved tickets, and model responses as untrusted data.
+
+Do not expose the LLM API key or unrestricted inference-server credentials to the mobile or web clients.
+
+## Prompt construction
+
+Design clear task-specific prompts.
+
+The model should be instructed to:
+
+- Avoid fabricating facts.
+- Identify uncertainty.
+- Ask questions when required fields are missing.
+- Return valid structured output.
+- Distinguish facts from recommendations.
+- Respect campus boundaries.
+- Avoid returning unnecessary personal data.
+- Never claim that it performed a database update.
+- Never submit or close tickets itself.
+
+## Reliability
+
+Implement:
+
+- Connection timeouts.
+- Request-size limits.
+- Bounded retries.
+- Safe error handling.
+- Optional concurrency limits.
+- Logging without unnecessary sensitive content.
+- Graceful degradation.
+
+Do not retry indefinitely.
+
+Do not let an unavailable LLM block manual reporting, ticket browsing, endorsements, ticket updates, or ordinary management workflows.
+
+---
+
+# 17. AI FAILURE AND FALLBACK BEHAVIOR
+
+AI is an enhancement, not a dependency for core operations.
+
+If the model endpoint is unavailable:
+
+- Manual ticket creation must still work.
+- Users must still be able to browse tickets.
+- Users must still be able to endorse existing tickets.
+- Management must still be able to manage tickets.
+- Historical records must remain accessible.
+- Notifications and escalation processing must continue.
+- AI-dependent operations must return clear, recoverable errors.
+- The interface must provide a manual alternative.
+
+For AI-assisted reporting:
+
+1. Preserve the user's original text.
+2. Inform the user that AI assistance is temporarily unavailable.
+3. Allow the user to fill in fields manually.
+4. Do not lose entered information.
+5. Do not submit anything automatically.
+
+For AI analytics:
+
+- Display the last successfully generated result if available.
+- Show its generation timestamp.
+- Clearly indicate that the result may be stale.
+- Otherwise display an unavailable state with an option to retry.
+
+Do not display fabricated AI results as though they were genuine analysis.
+
+---
+
+# 18. ANONYMOUS REPORTING AND PRIVACY
+
+Users must be able to choose anonymous reporting where the ticket type and policy permit it.
+
+Anonymity is a visibility policy, not the removal of the reporter's identity from the authorized record.
+
+## Ordinary users
+
+When viewing an anonymous ticket, ordinary users must not see the reporter's actual name, phone number, email address, or other identifying information.
+
+Display an appropriate anonymous-reporter label.
+
+## Campus management and supermanagement
+
+Authorized management may see the actual reporter identity, including the name and phone number, regardless of the anonymity setting.
+
+This is an explicit product requirement.
+
+## Backend enforcement
+
+Implement field-level authorization.
+
+Do not simply hide the name in React while returning it in the API response.
+
+Create role-aware response schemas or serializers that return only the fields a caller is authorized to access.
+
+Check authorization for:
+
+- Ticket details.
+- Comments.
+- Attachments.
+- Notifications.
+- Export endpoints.
+- Search results.
+- Analytics.
+- AI context.
+- Audit-log access.
+
+Do not expose sensitive reporter information through error messages, filenames, logs, notification payloads, or AI-generated summaries.
+
+Apply the same principles to email addresses and other identifying metadata.
+
+## Audit logs
+
+Log sensitive administrative access and important data modifications where appropriate.
+
+Avoid recording passwords, OTPs, access tokens, refresh tokens, or unnecessary personal information in logs.
+
+---
+
+# 19. FILE ATTACHMENTS AND SUPABASE STORAGE
+
+Users should be able to attach relevant images or documents to tickets.
+
+Use a private Supabase Storage bucket.
+
+Store file metadata in PostgreSQL.
+
+The metadata should include relevant fields such as:
+
+- Attachment ID.
+- Ticket ID.
+- Storage object path.
+- Original filename, safely handled.
+- MIME type.
+- File size.
+- Uploader.
+- Creation timestamp.
+
+## Security requirements
+
+- Validate allowed file types.
+- Enforce size limits.
+- Generate safe storage paths.
+- Prevent path traversal.
+- Avoid trusting filename extensions.
+- Verify authorization before upload or download.
+- Use short-lived signed URLs when appropriate.
+- Do not expose private storage objects through permanent public URLs.
+- Prevent users from attaching files to tickets they cannot modify.
+- Keep storage metadata consistent with ticket relationships.
+
+Use backend-controlled upload and download flows or appropriately scoped signed-upload mechanisms.
+
+Do not expose a Supabase service-role key to the client.
+
+---
+
+# 20. NOTIFICATIONS
+
+Implement a reusable notification subsystem.
+
+Initially support in-app notifications.
+
+Notification types may include:
+
+- Ticket created.
+- Ticket acknowledged.
+- Ticket assigned.
+- Ticket progress updated.
+- Ticket resolved.
+- Ticket reopened.
+- New management comment.
+- Reporter reopen request.
+- Stage overdue.
+- Critical escalation.
+- Other relevant workflow events.
+
+A notification record should track:
+
+- Recipient.
+- Notification type.
+- Relevant ticket.
+- Creation timestamp.
+- Read timestamp or equivalent state.
+- Relevant metadata.
+
+Do not expose information to unauthorized recipients.
+
+Use idempotency or equivalent deduplication for scheduled notifications and retried operations.
+
+Build the subsystem so email and push notifications can be integrated later.
+
+Do not require a paid notification service for the initial implementation.
+
+---
+
+# 21. API DESIGN
+
+Use a versioned REST API, such as:
+
+`/api/v1`
+
+Define consistent request, response, and error formats.
+
+Validate all incoming data using Zod.
+
+Document endpoints and authorization requirements.
+
+The following endpoint groups are examples of the intended functionality, not a requirement to expose every operation as an individual route.
+
+## Authentication
+
+- Start verification.
+- Verify OTP.
+- Refresh session.
+- Log out.
+- Revoke sessions.
+
+## Campus and identity
+
+- List permitted campuses.
+- Check onboarding eligibility.
+- Retrieve authorized campus information.
+- Retrieve the authenticated user's permitted memberships.
+
+Do not expose the complete authorized identity registry publicly.
+
+## Tickets
+
+- Create a ticket.
+- List tickets visible to the caller.
+- Retrieve ticket details.
+- Update permitted fields.
+- Submit comments.
+- Add attachments.
+- Endorse an existing ticket.
+- Retrieve status history.
+- Request reopening.
+- Search historical tickets.
+
+## Management
+
+- Retrieve dashboard statistics.
+- Acknowledge a ticket.
+- Assign a ticket.
+- Change status.
+- Record progress.
+- Change priority.
+- Resolve a ticket.
+- Close a ticket.
+- Mark duplicates.
+- Process reopen requests.
+- Retrieve escalation history.
+
+## Supermanagement
+
+- Retrieve global statistics.
+- Compare campuses.
+- Inspect authorized cross-campus tickets.
+- Retrieve analytical data.
+- Request AI insights.
+- Manage permitted global settings.
+
+## AI
+
+- Parse a description.
+- Answer a reporting follow-up question.
+- Retrieve similar-ticket suggestions.
+- Request analytical insights.
+
+Every AI endpoint must have request limits and authorization appropriate to its function.
+
+## Operational endpoints
+
+Include:
+
+- Health check.
+- Readiness check where appropriate.
+- API documentation.
+- Safe error responses.
+
+Do not return database credentials, stack traces, internal secrets, or sensitive infrastructure information in production errors.
+
+---
+
+# 22. UI/UX DESIGN SYSTEM
+
+The interface should be minimalist, polished, modern, and easy to use.
+
+Use an Apple-inspired design sensibility without directly copying proprietary interfaces or assets.
+
+## Visual direction
+
+- Clean layouts.
+- Generous spacing.
+- Soft rounded corners.
+- Clear typography.
+- Subtle depth.
+- Tasteful glassmorphism where useful.
+- Smooth but restrained animations.
+- Consistent iconography.
+- Clear visual hierarchy.
+- Accessible contrast.
+- Responsive layouts.
+- Good loading, empty, and error states.
+
+Avoid excessive blur, unnecessary animation, and expensive visual effects, particularly on mobile.
+
+Performance and clarity are more important than decorative effects.
+
+## Shared design tokens
+
+Create reusable design tokens for:
+
+- Colors.
+- Typography.
+- Spacing.
+- Border radii.
+- Shadows.
+- Elevation.
+- Motion durations.
+- Semantic status colors.
+
+Use consistent visual meanings across mobile and web.
+
+For example, critical, overdue, resolved, and in-progress states should be visually recognizable without relying exclusively on color.
+
+## Mobile experience
+
+Optimize for:
+
+- One-handed use.
+- Short forms.
+- Clear primary actions.
+- Simple navigation.
+- Large touch targets.
+- Image attachment workflows.
+- Status tracking.
+- Notification access.
+- Low-friction reporting.
+
+## Management experience
+
+Optimize for:
+
+- Information density without clutter.
+- Rapid ticket triage.
+- Search and filtering.
+- Clear priority indicators.
+- Efficient assignment and progress updates.
+- Historical inspection.
+- Responsive desktop and tablet layouts.
+
+## User-friendly language
+
+Avoid exposing database terminology, internal enum names, or technical implementation details to ordinary users.
+
+Map internal states to clear labels in the UI.
+
+For example:
+
+- `OPEN` → Open.
+- `ACKNOWLEDGED` → Acknowledged.
+- `IN_PROGRESS` → In progress.
+- `WAITING` → Waiting for an update or dependency, with context.
+- `RESOLVED` → Resolved.
+- `CLOSED` → Closed.
+
+Keep the underlying enum values consistent.
+
+---
+
+# 23. GIT AND GITHUB
+
+Use Git from the beginning.
+
+Inspect the directory before initializing Git.
+
+If it is not already a repository, initialize it.
+
+Create a suitable `.gitignore`.
+
+At minimum, exclude:
+
+- `.env` and other secret-bearing files.
+- Local credentials.
+- Dependency directories.
+- Build outputs.
+- Temporary files.
+- Local caches.
+- Logs containing sensitive information.
+- Local database files.
+- Signing keys and certificates.
+
+Create a safe `.env.example` containing placeholder values only.
+
+Never commit real credentials.
+
+Use clear commit messages describing meaningful changes.
+
+Commit at sensible checkpoints rather than creating one enormous final commit.
+
+Before major changes, inspect the working tree.
+
+Do not discard or overwrite uncommitted work.
+
+## GitHub setup
+
+Help me create or connect a private GitHub repository.
+
+If GitHub CLI is installed, inspect its authentication status without printing secrets.
+
+If authentication is unavailable, explain the safest way to authenticate.
+
+Never ask me to paste a GitHub password, personal access token, or private key into chat.
+
+Do not change repository visibility to public.
+
+Do not push code, change repository settings, or perform destructive remote operations without explicit authorization.
+
+If a GitHub remote already exists, inspect it before modifying it.
+
+Document the Git workflow in the README.
+
+---
+
+# 24. ENVIRONMENT VARIABLES AND SECRET MANAGEMENT
+
+Create `.env.example` with clearly named placeholders.
+
+Use separate configuration for local development and deployment.
+
+Expected settings may include:
+
+```dotenv
+NODE_ENV=development
+PORT=3000
+
+DATABASE_URL=
+DIRECT_URL=
+
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+JWT_ACCESS_SECRET=
+REFRESH_TOKEN_PEPPER=
+
+AI_PROVIDER=mock
+AI_BASE_URL=
+AI_API_KEY=
+AI_MODEL=
+AI_TIMEOUT_MS=30000
+AI_MAX_RETRIES=1
+AI_ENABLED=true
+
+WEB_ORIGIN=
+MOBILE_APP_SCHEME=
+```
+
+Adjust the names to match the selected libraries and architecture.
+
+This example is not a mandate to use every variable. Do not introduce unused configuration.
+
+Do not put real values in the example file.
+
+## Secret-handling requirements
+
+- Never commit `.env`.
+- Never print full secret values in logs.
+- Never return secrets through the API.
+- Never expose service-role credentials to the browser or mobile application.
+- Never expose the AI endpoint's private API key to clients.
+- Never paste my credentials into source code.
+- Never use production credentials in seed data or tests.
+- Never assume an environment variable is configured without checking.
+
+If a secret appears in Git history, treat it as exposed and explain the required rotation procedure. Deleting the file in a later commit does not remove the secret from history.
+
+---
+
+# 25. SUPABASE SETUP — GUIDE ME STEP BY STEP
+
+I will provide the required Supabase project details when prompted.
+
+Do not invent real credentials.
+
+When database setup becomes necessary, explain exactly what I must do and where to find each value in the current Supabase dashboard.
+
+Guide me through:
+
+1. Creating a Supabase project.
+2. Choosing an appropriate region.
+3. Setting and safely storing the database password.
+4. Locating the project URL.
+5. Identifying the appropriate PostgreSQL connection string.
+6. Understanding the difference between direct connections and pooler connections.
+7. Configuring Prisma's runtime and migration connections correctly.
+8. Creating the private Storage bucket.
+9. Configuring the required storage policies.
+10. Obtaining any required server-side API key.
+11. Configuring local environment variables.
+12. Running database migrations.
+13. Seeding fictional development data.
+14. Verifying that the backend can connect.
+
+The exact dashboard labels may change. Inspect current official documentation or available dashboard information if necessary instead of guessing.
+
+## Prisma and Supabase
+
+Configure Prisma according to the supported version and connection requirements.
+
+If the selected Prisma version supports distinct runtime and migration connection configuration, use it appropriately.
+
+Do not blindly apply obsolete Prisma configuration patterns.
+
+Use a suitable pooled connection for application runtime when appropriate, and a suitable direct or session connection for migrations when required by the selected setup.
+
+Do not assume all Supabase connection strings behave identically.
+
+Keep all database credentials server-side.
+
+## Storage
+
+Create a private bucket for ticket attachments.
+
+Implement and document appropriate authorization and file-access policies.
+
+Do not make the bucket public simply to simplify development.
+
+## Development seed
+
+Create fictional campuses, departments, locations, categories, and authorized users.
+
+The seed process must be repeatable and safe for the intended development environment.
+
+Never run destructive seed operations against a production database without explicit approval.
+
+---
+
+# 26. SECURITY REQUIREMENTS
+
+Security is a core architectural responsibility.
+
+Implement practical safeguards for:
+
+- Authentication.
+- Authorization.
+- Campus isolation.
+- Input validation.
+- Rate limiting.
+- Session revocation.
+- File uploads.
+- Attachment downloads.
+- Secret management.
+- SQL and injection risks.
+- Cross-site scripting.
+- CSRF where applicable.
+- CORS.
+- Sensitive-field filtering.
+- Audit logging.
+- Error handling.
+- Abuse of AI endpoints.
+- Request-size limits.
+- OTP abuse.
+- Duplicate endorsements.
+- Concurrent ticket updates.
+
+Use maintained security middleware and libraries where appropriate.
+
+Do not invent custom cryptography.
+
+Do not treat client-provided values as trusted.
+
+## Campus isolation
+
+Every campus-scoped query must enforce the authenticated user's permitted campus scope.
+
+Do not fetch an unrestricted dataset and rely on the frontend to filter it.
+
+Ensure the same isolation applies to:
+
+- Tickets.
+- Attachments.
+- Comments.
+- Search.
+- Notifications.
+- Analytics.
+- AI context.
+- Exports.
+- Historical records.
+
+Supermanagement access must be explicitly authorized.
+
+## Auditability
+
+Record important operations such as:
+
+- Status changes.
+- Assignments.
+- Priority overrides.
+- Duplicate marking.
+- Resolution.
+- Reopening.
+- Changes to important campus configuration.
+- Sensitive administrative operations.
+
+Audit records must identify the actor where known and preserve relevant timestamps.
+
+Do not allow ordinary users to modify audit records.
+
+Do not log credentials or unnecessarily sensitive data.
+
+---
+
+# 27. TESTING AND VERIFICATION STRATEGY
+
+Do not make testing the central activity or delay all implementation until an elaborate test suite exists.
+
+Prioritize building the actual product.
+
+However, each important module must receive practical verification.
+
+Use:
+
+- TypeScript compilation checks.
+- Linting and formatting.
+- Database schema validation.
+- Migration checks.
+- API smoke checks.
+- Basic authentication checks.
+- Basic authorization checks.
+- Manual UI verification.
+- Critical workflow checks.
+
+Focus especially on:
+
+- Cross-campus isolation.
+- Anonymous reporter visibility.
+- Management access to reporter identity.
+- Ticket creation and status history.
+- Duplicate endorsement uniqueness.
+- Stage-based escalation.
+- Notification deduplication.
+- Ticket resolution and reopening.
+- AI fallback behavior.
+- File-access authorization.
+
+Keep verification proportional to the risk and complexity of the feature.
+
+Do not claim something works merely because the code looks plausible.
+
+Record actual verification results in `CURRENT_STATE.md` and the development logs.
+
+If something has not been verified, label it accordingly.
+
+---
+
+# 28. IMPLEMENTATION PHASES
+
+Follow this order unless a documented dependency requires a change.
+
+Do not attempt to complete all phases in one uninterrupted generation.
+
+## PHASE 0 — INSPECT, PLAN, AND CHECKPOINT
+
+First inspect the current environment and project directory.
+
+Determine:
+
+- Whether the folder is empty.
+- Whether Git is initialized.
+- Whether Node.js is installed.
+- Which Node.js version is available.
+- Whether the package manager is available.
+- Whether Pi Agent and its relevant workflows are available.
+- Whether Obra/Superpowers is available and how it is intended to be used.
+- Whether any existing files or project decisions need to be preserved.
+
+Then create:
+
+- Initial repository structure.
+- Initial `README.md`.
+- `.gitignore`.
+- `.env.example`.
+- `agent-work/CURRENT_STATE.md`.
+- `agent-work/TASKS.md`.
+- `agent-work/DECISIONS.md`.
+- `agent-work/CHANGELOG.md`.
+- Initial architecture documentation.
+
+Do not create the entire application during this phase.
+
+Present me with a concise summary of:
+
+- What you found.
+- What you created.
+- What tools are missing.
+- What external credentials will eventually be required.
+- The next implementation phase.
+
+Ask me only for information needed to unblock the next stage.
+
+## PHASE 1 — ARCHITECTURE AND CONTRACTS
+
+Define:
+
+- Module boundaries.
+- Application package structure.
+- API conventions.
+- Shared types and schemas.
+- Authentication architecture.
+- Campus authorization policies.
+- Ticket lifecycle.
+- Escalation rules.
+- Database entities and relationships.
+- AI provider interface.
+- Notification interface.
+- Error handling conventions.
+- Environment-variable conventions.
+
+Document important decisions.
+
+Use subagents to review separable parts if appropriate.
+
+Resolve disagreements before parallel implementation.
+
+## PHASE 2 — DATABASE AND BACKEND FOUNDATION
+
+Implement:
+
+- Express application.
+- TypeScript configuration.
+- Prisma setup.
+- Supabase PostgreSQL connection.
+- Initial schema.
+- Database migrations.
+- Development seed.
+- Centralized configuration.
+- Logging.
+- Error handling.
+- Zod validation.
+- Health checks.
+- API routing.
+- Authentication foundation.
+
+Verify the application starts and the database schema is valid.
+
+Do not proceed while major schema inconsistencies remain unresolved.
+
+## PHASE 3 — AUTHENTICATION AND CAMPUS REGISTRY
+
+Implement:
+
+- Campus registry.
+- Authorized identity registry.
+- Campus memberships.
+- Simulated OTP.
+- Token issuance.
+- Refresh-token rotation.
+- Session revocation.
+- Logout.
+- Role and campus authorization.
+- Account and identifier rate limiting.
+
+Verify that unauthorized identities cannot register as authorized campus users.
+
+Ensure the simulation can later be replaced by real verification providers.
+
+## PHASE 4 — CORE TICKET SYSTEM
+
+Implement:
+
+- Manual ticket creation.
+- Ticket listing.
+- Ticket details.
+- Search and filters.
+- Categories and locations.
+- Ticket comments.
+- Attachments.
+- Ticket endorsements.
+- Assignment.
+- Status transitions.
+- Status history.
+- Priority history.
+- Audit logging.
+- Historical records.
+- Anonymous-reporting field protection.
+
+Make the core system useful without AI.
+
+## PHASE 5 — TICKET LIFECYCLE AND ESCALATION
+
+Implement:
+
+- Structured progress events.
+- Stage timers.
+- Configurable escalation rules.
+- Critical-issue escalation.
+- Background scheduling.
+- Idempotent escalation events.
+- Notification generation.
+- Overdue management views.
+- Resolution.
+- Closure.
+- Reopening.
+- Reporter reopen requests.
+- Historical search.
+
+Verify the lifecycle with controlled development data and time-independent checks where practical.
+
+Do not wait 21 real days to establish whether the scheduler logic works. Use controlled timestamps, test clocks, or equivalent verification techniques without changing production policy.
+
+## PHASE 6 — AI ADAPTER AND REPORTING
+
+Implement:
+
+- OpenAI-compatible provider.
+- Mock provider.
+- Provider selection.
+- Structured AI schemas.
+- Issue parsing.
+- Follow-up questions.
+- Similarity suggestions.
+- Priority recommendations.
+- Timeout handling.
+- Fallback behavior.
+- AI request logging that avoids sensitive content.
+
+Test the integration against a compatible local or development endpoint when one is available.
+
+Do not make a real model endpoint a prerequisite for implementing the adapter.
+
+## PHASE 7 — WEB MANAGEMENT APPLICATION
+
+Build:
+
+- Login.
+- Role-aware navigation.
+- Management dashboard.
+- Ticket queue.
+- Ticket details.
+- Assignment and progress controls.
+- Status and priority updates.
+- Escalation views.
+- Notifications.
+- Historical ticket views.
+- Campus statistics.
+
+Use the real backend rather than permanently hard-coded frontend sample data.
+
+Temporary mock data is acceptable during early UI development but must be clearly isolated and replaced in the integrated application.
+
+## PHASE 8 — SUPERmanagement AND ANALYTICS
+
+Build:
+
+- Global campus overview.
+- Campus comparison.
+- Cross-campus ticket search.
+- Escalation analytics.
+- Resolution metrics.
+- Recurring-issue analysis.
+- AI-assisted insights.
+- Insight timestamps.
+- Stale and unavailable states.
+
+Keep AI recommendations separate from verified database facts.
+
+## PHASE 9 — MOBILE APPLICATION
+
+Build the React Native application.
+
+Include:
+
+- Onboarding.
+- Campus selection.
+- Simulated OTP flow.
+- User home screen.
+- Manual reporting.
+- AI-assisted reporting.
+- Ticket confirmation.
+- Similar-ticket suggestions.
+- Endorsement workflow.
+- My tickets.
+- Ticket details.
+- Comments and attachments.
+- Notifications.
+- Anonymous reporting.
+- Status tracking.
+- Reopen requests.
+
+Use shared API contracts and the same backend.
+
+Ensure that ordinary users cannot navigate into unauthorized management functions.
+
+## PHASE 10 — INTEGRATION AND ENVIRONMENT SETUP
+
+Integrate all modules.
+
+Resolve:
+
+- Type mismatches.
+- API-contract mismatches.
+- Authentication problems.
+- Environment-variable inconsistencies.
+- Database migration issues.
+- Authorization gaps.
+- UI/backend integration problems.
+- Build and runtime errors.
+
+Verify that the main user workflows function end to end.
+
+Guide me through GitHub setup if needed.
+
+Guide me through Supabase configuration and provide exact setup instructions when those values become necessary.
+
+Do not require me to create every source file manually.
+
+## PHASE 11 — ANDROID BUILD AND FINAL SETUP
+
+Only after the other major components have been developed and integrated, guide me through the remaining Android-specific setup.
+
+Explain:
+
+- Required Android development tools.
+- Android Studio installation if needed.
+- SDK configuration.
+- Expo configuration.
+- Environment settings.
+- Development build versus production APK.
+- How to produce an APK.
+- How to install and verify it on an Android device.
+- How to configure the backend URL for the device.
+- How to handle production API URLs and secrets correctly.
+
+Do not embed privileged credentials into the APK.
+
+An APK must never contain a Supabase service-role key, database password, JWT signing secret, or private AI API key.
+
+Document the final build procedure.
+
+## PHASE 12 — FINAL DOCUMENTATION AND HANDOFF
+
+Update:
+
+- README.
+- Setup guide.
+- Architecture guide.
+- Database guide.
+- API documentation.
+- Security notes.
+- Deployment notes.
+- Environment-variable documentation.
+- Recovery logs.
+- Task list.
+- Changelog.
+
+Provide a clear final summary of:
+
+- Implemented features.
+- Verified workflows.
+- Remaining limitations.
+- External services still requiring configuration.
+- Outstanding security or deployment concerns.
+- How to start each application.
+- How to run migrations.
+- How to seed development data.
+- How to build the Android APK.
+- How to resume work in a future Pi Agent session.
+
+Never claim the project is production-ready merely because the code compiles.
+
+---
+
+# 29. DEVELOPMENT SETUP EXPERIENCE
+
+I am willing to configure external services, but I need precise guidance.
+
+When a setup task becomes necessary, tell me:
+
+1. What needs to be configured.
+2. Why it is required.
+3. Which website or application to open.
+4. Where to navigate.
+5. What value to obtain.
+6. Where the value should be stored locally.
+7. Whether the value is sensitive.
+8. How to verify the configuration.
+9. How to recover from common errors.
+
+Avoid giving all setup instructions at once if they are not yet relevant.
+
+Use short, ordered steps.
+
+Do not ask me to create dozens of files manually when the coding agent can create them.
+
+Do not ask me to provide secrets in ordinary chat if a local environment file or secure interactive mechanism is appropriate.
+
+If an operation requires my approval, explain the action and wait for approval.
+
+---
+
+# 30. ERROR HANDLING AND RECOVERY
+
+When something fails:
+
+1. Read the full relevant error output.
+2. Identify the underlying cause.
+3. Inspect the affected code and configuration.
+4. Determine whether the failure affects other modules.
+5. Fix the underlying problem rather than masking it.
+6. Run the smallest relevant verification.
+7. Update the recovery logs.
+8. Continue from the last verified state.
+
+Do not repeatedly execute the same failing command without changing the relevant conditions.
+
+Do not conceal unresolved failures by adding empty catch blocks or returning fabricated success responses.
+
+Provide user-friendly error messages in the interface while preserving useful diagnostics in development logs.
+
+If the agent session is approaching its context limit, stop starting new major tasks. Record a checkpoint, list the exact next steps, and leave the repository in a recoverable state.
+
+---
+
+# 31. NON-NEGOTIABLE PRODUCT RULES
+
+The following requirements must remain true throughout development.
+
+1. There is one shared backend for the mobile and web applications.
+2. Campus data must be isolated through backend authorization.
+3. There are three broad access layers: ordinary users, campus management, and supermanagement.
+4. Ordinary users cannot see the real identity of reporters who choose anonymity.
+5. Authorized campus management and supermanagement can see the identity and phone number of anonymous reporters.
+6. AI must never submit a ticket without explicit user confirmation.
+7. AI must never automatically merge potentially duplicate tickets.
+8. Manual reporting must remain available without AI.
+9. AI failure must not disable core ticket management.
+10. The escalation clock starts when a ticket is created.
+11. A ticket that remains unchanged at a progress stage for 21 days must trigger the configured management escalation.
+12. The same stage-based principle applies to subsequent stages.
+13. Critical issues must support shorter escalation periods.
+14. Meaningful progress must be distinguished from superficial status changes.
+15. Escalations and notifications must be idempotent and auditable.
+16. Resolved and closed tickets must remain available in historical records.
+17. Resolution removes a ticket from active work; it does not delete the record.
+18. Reopening must preserve the original history.
+19. Official management priority must be distinguishable from AI-suggested priority.
+20. AI insights must distinguish factual metrics from recommendations.
+21. Secrets must not be committed to Git or exposed to clients.
+22. The mobile app must not contain privileged backend credentials.
+23. The project must remain modular and recoverable across agent sessions.
+24. The development agent must not falsely claim that incomplete or unverified work is complete.
+25. Destructive operations and externally visible actions require appropriate inspection and approval.
+
+---
+
+# 32. YOUR FIRST RESPONSE AND FIRST ACTIONS
+
+Begin now.
+
+Do not attempt to generate every application component immediately.
+
+First:
+
+1. Inspect the current `Unifix` directory.
+2. Inspect Git state and existing files.
+3. Inspect Node.js and relevant development tools.
+4. Check the availability of the requested subagent and Obra/Superpowers workflows.
+5. Identify prerequisites and constraints.
+6. Create the initial project checkpoint and phased task list.
+7. Define the first implementation task.
+
+Then report:
+
+- The current environment.
+- The files and project state you discovered.
+- Any missing tools.
+- Any required decisions or credentials that genuinely block the next task.
+- The first concrete implementation milestone.
+
+If the environment is ready, begin implementation immediately.
+
+Do not spend the entire session discussing plans.
+
+Do not create a superficial demo and call it the finished product.
+
+Work methodically, preserve the existing project, checkpoint every meaningful milestone, and build Unifix into a coherent application that can be extended and maintained over time.

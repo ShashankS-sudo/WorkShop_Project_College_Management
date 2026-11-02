@@ -1,0 +1,476 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Campus {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  isActive  Boolean  @default(true)
+  address   String?
+  latitude  Float?
+  longitude Float?
+  timezone  String?  @default("UTC")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorizedIdentities CampusAuthorizedIdentity[]
+  memberships          CampusMembership[]
+  departments          Department[]
+  buildings            Building[]
+  locations            Location[]
+  categories           Category[]
+  tickets              Ticket[]
+  auditLogs            AuditLog[]
+
+  @@map("campus")
+}
+
+model CampusAuthorizedIdentity {
+  id          String   @id @default(uuid())
+  campusId    String
+  email       String?
+  phone       String?
+  displayName String
+  externalId  String?
+  role        String   @default("REPORTER") // 'REPORTER' | 'MANAGEMENT' | 'SUPERMANAGEMENT'
+  department  String?
+  isActive    Boolean  @default(true)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+
+  @@index([campusId])
+  @@index([email])
+  @@index([phone])
+  @@map("campus_authorized_identity")
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  campusId  String
+  name      String
+  code      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campus      Campus             @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  tickets     Ticket[]
+  assignments TicketAssignment[]
+
+  @@unique([campusId, name])
+  @@map("department")
+}
+
+model Building {
+  id        String   @id @default(uuid())
+  campusId  String
+  name      String
+  code      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campus    Campus     @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  locations Location[]
+
+  @@unique([campusId, name])
+  @@map("building")
+}
+
+model Location {
+  id          String   @id @default(uuid())
+  campusId    String
+  buildingId  String?
+  name        String
+  floor       String?
+  room        String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campus   Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  building Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  tickets  Ticket[]
+
+  @@index([campusId])
+  @@map("location")
+}
+
+model Category {
+  id              String   @id @default(uuid())
+  campusId        String?
+  name            String
+  description     String?
+  icon            String?
+  defaultPriority String   @default("MEDIUM")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  campus  Campus?  @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  tickets Ticket[]
+
+  @@index([campusId])
+  @@map("category")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String?   @unique
+  phone         String?   @unique
+  firstName     String?
+  lastName      String?
+  avatarUrl     String?
+  isActive      Boolean   @default(true)
+  isAnonymous   Boolean   @default(false)
+  emailVerified DateTime?
+  phoneVerified DateTime?
+  lastLogin     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  campusMemberships CampusMembership[]
+  refreshSessions   RefreshSession[]
+  reportedTickets   Ticket[]              @relation("Reporter")
+  assignedTickets   Ticket[]              @relation("Assignee")
+  assignmentsMade   TicketAssignment[]    @relation("AssignedBy")
+  assignedTo        TicketAssignment[]    @relation("AssignedTo")
+  comments          Comment[]
+  attachments       Attachment[]
+  statusHistories   StatusHistory[]
+  priorityHistories PriorityHistory[]
+  progressEvents    TicketProgressEvent[]
+  endorsements      Endorsement[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  aiAnalyses        AIAnalysis[]
+
+  @@map("user")
+}
+
+model CampusMembership {
+  id        String   @id @default(uuid())
+  userId    String
+  campusId  String
+  role      String   @default("REPORTER") // 'REPORTER' | 'MANAGEMENT' | 'SUPERMANAGEMENT'
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campus Campus @relation(fields: [campusId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campusId])
+  @@index([campusId])
+  @@map("campus_membership")
+}
+
+model RefreshSession {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String   @unique
+  userAgent  String?
+  ipAddress  String?
+  isRevoked  Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_session")
+}
+
+model Ticket {
+  id                String    @id @default(uuid())
+  campusId          String
+  reporterId        String?
+  assigneeId        String?
+  departmentId      String?
+  categoryId        String?
+  locationId        String?
+  ticketType        String    @default("ISSUE") // ISSUE, SERVICE_REQUEST
+  title             String
+  description       String
+  locationText      String?
+  severity          String    @default("MODERATE") // MINOR, MODERATE, MAJOR, CRITICAL
+  impact            String    @default("INDIVIDUAL") // INDIVIDUAL, GROUP, BUILDING, CAMPUS
+  urgency           String    @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  suggestedPriority String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  priority          String    @default("MEDIUM") // official priority: LOW, MEDIUM, HIGH, CRITICAL
+  status            String    @default("OPEN") // OPEN, ACKNOWLEDGED, UNDER_REVIEW, ASSIGNED, IN_PROGRESS, WAITING, RESOLVED, CLOSED, REJECTED, DUPLICATE
+  isCritical        Boolean   @default(false)
+  isAnonymous       Boolean   @default(false)
+  duplicateOfId     String?
+  escalationCount   Int       @default(0)
+  currentStage      String    @default("REPORTED") // REPORTED, ACKNOWLEDGED, ACTIVE, RESOLVING, COMPLETED
+  stageStartTime    DateTime  @default(now())
+  stageDuration     Int       @default(504) // in hours (21 days)
+  lastProgressAt    DateTime  @default(now())
+  acknowledgedAt    DateTime?
+  startedAt         DateTime?
+  waitingReason     String?
+  resolvedAt        DateTime?
+  resolutionSummary String?
+  closedAt          DateTime?
+  reopenCount       Int       @default(0)
+  reopenedAt        DateTime?
+  reopenReason      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  campus            Campus                @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  reporter          User?                 @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  assignee          User?                 @relation("Assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  department        Department?           @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  category          Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  location          Location?             @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  duplicateOf       Ticket?               @relation("Duplicates", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates        Ticket[]              @relation("Duplicates")
+  comments          Comment[]
+  attachments       Attachment[]
+  statusHistories   StatusHistory[]
+  priorityHistories PriorityHistory[]
+  progressEvents    TicketProgressEvent[]
+  escalationEvents  EscalationEvent[]
+  endorsements      Endorsement[]
+  assignments       TicketAssignment[]
+  aiAnalyses        AIAnalysis[]
+  notifications     Notification[]
+
+  @@index([campusId])
+  @@index([status])
+  @@index([priority])
+  @@index([reporterId])
+  @@index([assigneeId])
+  @@index([currentStage])
+  @@index([isCritical])
+  @@index([stageStartTime])
+  @@map("ticket")
+}
+
+model TicketAssignment {
+  id           String   @id @default(uuid())
+  ticketId     String
+  assignedById String
+  assigneeId   String?
+  departmentId String?
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  ticket       Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  assignedBy   User        @relation("AssignedBy", fields: [assignedById], references: [id])
+  assignee     User?       @relation("AssignedTo", fields: [assigneeId], references: [id], onDelete: SetNull)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@map("ticket_assignment")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  ticketId   String
+  userId     String
+  content    String
+  isInternal Boolean  @default(false)
+  authorName String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("comment")
+}
+
+model Attachment {
+  id         String   @id @default(uuid())
+  ticketId   String
+  userId     String
+  filename   String
+  filepath   String
+  mimeType   String
+  size       Int
+  isApproved Boolean  @default(true)
+  uploadedBy String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([userId])
+  @@map("attachment")
+}
+
+model Endorsement {
+  id         String   @id @default(uuid())
+  ticketId   String
+  endorserId String
+  createdAt  DateTime @default(now())
+
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  endorser User   @relation(fields: [endorserId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, endorserId])
+  @@index([ticketId])
+  @@map("endorsement")
+}
+
+model StatusHistory {
+  id             String   @id @default(uuid())
+  ticketId       String
+  status         String
+  previousStatus String?
+  changedById    String
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  changedBy User   @relation(fields: [changedById], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([changedById])
+  @@map("status_history")
+}
+
+model PriorityHistory {
+  id               String   @id @default(uuid())
+  ticketId         String
+  priority         String
+  previousPriority String?
+  changedById      String
+  reason           String
+  createdAt        DateTime @default(now())
+
+  ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  changedBy User   @relation(fields: [changedById], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([changedById])
+  @@map("priority_history")
+}
+
+model TicketProgressEvent {
+  id               String   @id @default(uuid())
+  ticketId         String
+  eventType        String // 'ACKNOWLEDGEMENT', 'ASSIGNMENT', 'INVESTIGATION_UPDATE', 'MAINTENANCE_ACTION', 'WAITING_STATE', 'RESOLUTION_ATTEMPT'
+  title            String
+  details          String
+  actorId          String
+  resetsStageTimer Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor  User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_progress_event")
+}
+
+model EscalationEvent {
+  id             String    @id @default(uuid())
+  ticketId       String
+  stage          String
+  previousStage  String
+  triggeredAt    DateTime  @default(now())
+  resolvedAt     DateTime?
+  duration       Int
+  manualOverride Boolean   @default(false)
+  notifiedIds    String[]  @default([])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("escalation_event")
+}
+
+model Notification {
+  id              String    @id @default(uuid())
+  userId          String
+  title           String
+  message         String
+  type            String
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  metadata        Json?
+  relatedTicketId String?
+  idempotencyKey  String?   @unique
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedTicket Ticket? @relation(fields: [relatedTicketId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([type])
+  @@index([isRead])
+  @@map("notification")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  campusId   String?
+  userId     String?
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  campus Campus? @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([campusId])
+  @@index([userId])
+  @@index([action])
+  @@map("audit_log")
+}
+
+model AIAnalysis {
+  id                String   @id @default(uuid())
+  ticketId          String?
+  campusId          String?
+  userId            String?
+  analysisType      String   @default("ISSUE_PARSING") // ISSUE_PARSING, SIMILARITY, INSIGHT
+  suggestedTitle    String?
+  suggestedCategory String?
+  suggestedPriority String?
+  suggestedLocation String?
+  similarTickets    String[] @default([])
+  confidence        Float?
+  modelUsed         String
+  tokensUsed        Int?
+  durationMs        Int?
+  promptTokens      Int?
+  completionTokens  Int?
+  rawOutput         String?
+  parsedOutput      Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([campusId])
+  @@map("ai_analysis")
+}

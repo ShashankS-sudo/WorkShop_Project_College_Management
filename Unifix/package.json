@@ -1,0 +1,47 @@
+{
+  "name": "unifix",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/mobile",
+    "apps/web",
+    "services/api",
+    "packages/shared-types",
+    "packages/shared-schemas",
+    "packages/shared-config"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=packages/shared-types && npm run build --workspace=packages/shared-schemas && npm run build --workspace=packages/shared-config && npm run build --workspace=services/api && npm run build --workspace=apps/web",
+    "typecheck": "npm run typecheck --workspace=apps/mobile && npm run typecheck --workspace=apps/web",
+    "dev": "npm run dev --workspace=services/api",
+    "start": "npm run start --workspace=services/api",
+    "seed": "ts-node prisma/seed.ts",
+    "test:smoke": "ts-node services/api/src/smokeTest.ts",
+    "test:integration": "ts-node services/api/src/integrationVerification.ts",
+    "test": "npm run test:smoke && npm run test:integration"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@types/cors": "^2.8.19",
+    "@types/helmet": "^4.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/winston": "^2.4.4",
+    "cors": "^2.8.6",
+    "express": "^4.18.2",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "prisma": "^5.22.0",
+    "typescript": "^5.0.0",
+    "winston": "^3.19.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "@types/node": "^20.11.8",
+    "dotenv": "^18.0.9",
+    "nodemon": "^3.0.1"
+  }
+}
