@@ -2,6 +2,8 @@
 import { app } from './app';
 import { PrismaClient } from '@prisma/client';
 import http from 'http';
+import jwt from 'jsonwebtoken';
+import { getConfig } from '@unifix/shared-config';
 
 const prisma = new PrismaClient();
 
@@ -21,7 +23,7 @@ async function runSmokeTest() {
     // 1. Health check
     console.log('\n--- 1. Testing Health Endpoint ---');
     const healthRes = await fetch(`${baseUrl}/health`);
-    const healthData = await healthRes.json();
+    const healthData: any = await healthRes.json();
     console.log('Health check:', healthRes.status, healthData);
     if (healthRes.status !== 200 || healthData.status !== 'ok') {
       throw new Error('Health check failed');
@@ -30,7 +32,7 @@ async function runSmokeTest() {
     // 2. Campus listing
     console.log('\n--- 2. Testing Campus Registry ---');
     const campusesRes = await fetch(`${baseUrl}/campuses`);
-    const campusesData = await campusesRes.json();
+    const campusesData: any = await campusesRes.json();
     console.log(`Retrieved ${campusesData.data?.length} active campuses.`);
     const pstcCampus = campusesData.data?.find((c: any) => c.code === 'PSTC');
     if (!pstcCampus) throw new Error('PSTC Campus not found in seed data');
@@ -39,7 +41,7 @@ async function runSmokeTest() {
     // 3. Campus details (departments, buildings, categories)
     console.log('\n--- 3. Testing Campus Details ---');
     const campusDetailsRes = await fetch(`${baseUrl}/campuses/${pstcCampus.id}`);
-    const campusDetails = await campusDetailsRes.json();
+    const campusDetails: any = await campusDetailsRes.json();
     console.log(
       `Campus details loaded: ${campusDetails.data.departments.length} departments, ` +
         `${campusDetails.data.buildings.length} buildings, ${campusDetails.data.categories.length} categories.`
@@ -52,7 +54,7 @@ async function runSmokeTest() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier: 'student.alex@pstc.test' }),
     });
-    const eligData = await eligRes.json();
+    const eligData: any = await eligRes.json();
     console.log('Eligibility result:', eligData.data);
     if (!eligData.data?.isAuthorized) throw new Error('Eligibility check failed for student.alex@pstc.test');
 
@@ -67,7 +69,7 @@ async function runSmokeTest() {
         isAnonymous: false,
       }),
     });
-    const otpReqData = await otpReqRes.json();
+    const otpReqData: any = await otpReqRes.json();
     console.log('OTP request result:', otpReqData.data);
     const otpCode = otpReqData.data?.developmentOtpCode || '123456';
 
@@ -83,7 +85,7 @@ async function runSmokeTest() {
         isAnonymous: false,
       }),
     });
-    const verifyData = await verifyRes.json();
+    const verifyData: any = await verifyRes.json();
     console.log('Verify response status:', verifyRes.status);
     const accessToken = verifyData.data?.accessToken;
     const refreshToken = verifyData.data?.refreshToken;
@@ -95,7 +97,7 @@ async function runSmokeTest() {
     const meRes = await fetch(`${baseUrl}/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    const meData = await meRes.json();
+    const meData: any = await meRes.json();
     console.log('Current user:', meData.data);
     if (meData.data?.email !== 'student.alex@pstc.test') throw new Error('Incorrect user profile returned');
 
@@ -106,7 +108,7 @@ async function runSmokeTest() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
-    const refreshData = await refreshRes.json();
+    const refreshData: any = await refreshRes.json();
     console.log('Refresh status:', refreshRes.status);
     const newAccessToken = refreshData.data?.accessToken;
     const newRefreshToken = refreshData.data?.refreshToken;
@@ -126,7 +128,7 @@ async function runSmokeTest() {
         text: 'The water fountain in Turing Engineering Center 1st floor is leaking all over the floor and water pressure is very low.',
       }),
     });
-    const aiParseData = await aiParseRes.json();
+    const aiParseData: any = await aiParseRes.json();
     console.log('AI Parse Result:', aiParseData.data);
     if (!aiParseData.data?.suggestedTitle) throw new Error('AI parse failed');
 
@@ -149,7 +151,7 @@ async function runSmokeTest() {
         isAnonymous: false,
       }),
     });
-    const createTicketData = await createTicketRes.json();
+    const createTicketData: any = await createTicketRes.json();
     console.log('Created ticket:', createTicketRes.status, createTicketData.data?.id);
     const createdTicketId = createTicketData.data?.id;
     if (!createdTicketId) throw new Error('Failed to create ticket');
@@ -160,7 +162,7 @@ async function runSmokeTest() {
       method: 'POST',
       headers: { Authorization: `Bearer ${newAccessToken}` },
     });
-    const endorseData = await endorseRes.json();
+    const endorseData: any = await endorseRes.json();
     console.log('Endorse status:', endorseRes.status, endorseData.data);
 
     // 12. Add Comment
@@ -175,15 +177,30 @@ async function runSmokeTest() {
         content: 'Placed a temporary caution cone near the puddle.',
       }),
     });
-    const commentData = await commentRes.json();
+    const commentData: any = await commentRes.json();
     console.log('Comment created:', commentRes.status, commentData.data?.content);
 
-    // 13. Escalation Check
-    console.log('\n--- 13. Testing Escalation Check Engine ---');
+    // 13. Escalation Check (Secured endpoint)
+    console.log('\n--- 13. Testing Escalation Check Engine (Secured) ---');
+    const config = getConfig();
+    const managementToken = jwt.sign(
+      {
+        userId: 'admin-smoke-test',
+        campusIds: [pstcCampus.id],
+        roles: ['SUPERMANAGEMENT'],
+        isAnonymous: false,
+      },
+      config.jwt.accessSecret,
+      { expiresIn: '15m' }
+    );
+
     const escRes = await fetch(`${baseUrl}/operational/escalation-check`, {
       method: 'POST',
+      headers: {
+        Authorization: `Bearer ${managementToken}`,
+      },
     });
-    const escData = await escRes.json();
+    const escData: any = await escRes.json();
     console.log('Escalation check result:', escData.data);
 
     console.log('\n🎉 ALL 13 END-TO-END VERIFICATION CHECKS PASSED SUCCESSFULLY!');

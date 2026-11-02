@@ -1,5 +1,7 @@
-// Mobile API Client - Unifix React Native
+// Mobile API Client - Unifix React Native with Persistence & Auto-Refresh
 import { Platform } from 'react-native';
+import { TokenStorage } from './tokenStorage';
+import { User } from '../types';
 
 // In Android emulator, 10.0.2.2 maps to host machine's localhost; otherwise localhost
 const DEFAULT_HOST = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
@@ -7,38 +9,135 @@ let API_BASE_URL = `${DEFAULT_HOST}/api/v1`;
 
 let authToken: string | null = null;
 let refreshTokenStr: string | null = null;
+let isInitialized = false;
+let refreshPromise: Promise<string | null> | null = null;
 
 export const MobileApiClient = {
   setBaseUrl(url: string) {
     API_BASE_URL = url.replace(/\/+$/, '');
   },
 
+  /**
+   * Initialize client by hydrating tokens from persistent storage.
+   */
+  async init(): Promise<{ tokens: { accessToken: string | null; refreshToken: string | null }; user: User | null }> {
+    const tokens = await TokenStorage.getTokens();
+    const user = await TokenStorage.getUser();
+    authToken = tokens.accessToken;
+    refreshTokenStr = tokens.refreshToken;
+    isInitialized = true;
+    return { tokens, user };
+  },
+
   setTokens(access: string, refresh: string) {
     authToken = access;
     refreshTokenStr = refresh;
+    // Persist asynchronously
+    TokenStorage.saveTokens(access, refresh).catch((err) => {
+      console.warn('Failed to save tokens to storage', err);
+    });
   },
 
-  clearTokens() {
+  async saveSession(user: User, access: string, refresh: string) {
+    authToken = access;
+    refreshTokenStr = refresh;
+    await Promise.all([
+      TokenStorage.saveTokens(access, refresh),
+      TokenStorage.saveUser(user),
+    ]);
+  },
+
+  async clearTokens() {
     authToken = null;
     refreshTokenStr = null;
+    await TokenStorage.clearAll();
   },
 
   clearAuth() {
-    this.clearTokens();
+    return this.clearTokens();
   },
 
-  async request<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  getAccessToken(): string | null {
+    return authToken;
+  },
+
+  getRefreshToken(): string | null {
+    return refreshTokenStr;
+  },
+
+  /**
+   * Refreshes JWT access token using the rotated refresh token endpoint.
+   * Deduplicates concurrent refresh attempts with a single shared promise.
+   */
+  async refreshTokens(): Promise<string | null> {
+    if (refreshPromise) {
+      return refreshPromise;
+    }
+
+    if (!refreshTokenStr) {
+      return null;
+    }
+
+    refreshPromise = (async () => {
+      try {
+        const url = `${API_BASE_URL}/auth/refresh`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: refreshTokenStr }),
+        });
+
+        if (!response.ok) {
+          await this.clearTokens();
+          return null;
+        }
+
+        const json = await response.json();
+        if (json.data?.accessToken && json.data?.refreshToken) {
+          this.setTokens(json.data.accessToken, json.data.refreshToken);
+          return json.data.accessToken as string;
+        }
+
+        await this.clearTokens();
+        return null;
+      } catch (err) {
+        console.warn('MobileApiClient: Token refresh network exception', err);
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
+  },
+
+  async request<T = any>(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<T> {
+    // If not yet initialized, load from storage first
+    if (!isInitialized) {
+      await this.init();
+    }
+
     const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
     };
 
-    if (authToken) {
+    if (authToken && !headers['Authorization']) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
-    const response = await fetch(url, { ...options, headers });
+    let response = await fetch(url, { ...options, headers });
+
+    // Handle 401 Unauthorized with automatic refresh and single retry
+    if (response.status === 401 && !isRetry && refreshTokenStr) {
+      const newAccessToken = await this.refreshTokens();
+      if (newAccessToken) {
+        headers['Authorization'] = `Bearer ${newAccessToken}`;
+        response = await fetch(url, { ...options, headers });
+      }
+    }
+
     const json = await response.json();
 
     if (!response.ok) {
@@ -71,9 +170,21 @@ export const MobileApiClient = {
     });
 
     if (res.data?.accessToken && res.data?.refreshToken) {
-      this.setTokens(res.data.accessToken, res.data.refreshToken);
+      if (res.data?.user) {
+        await this.saveSession(res.data.user, res.data.accessToken, res.data.refreshToken);
+      } else {
+        this.setTokens(res.data.accessToken, res.data.refreshToken);
+      }
     }
     return res;
+  },
+
+  async getCurrentUser() {
+    return this.request('/auth/me');
+  },
+
+  async getSavedUser(): Promise<User | null> {
+    return TokenStorage.getUser();
   },
 
   // Tickets

@@ -1,6 +1,6 @@
 // Unifix Mobile Application - React Native (Expo)
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, StatusBar, View, Alert } from 'react-native';
+import { SafeAreaView, StatusBar, View, Text, Alert, ActivityIndicator } from 'react-native';
 import { MobileApiClient } from './src/api/mobileClient';
 import { styles } from './src/styles/theme';
 import { Campus, User, Ticket, Notification } from './src/types';
@@ -15,6 +15,7 @@ import { NotificationsScreen } from './src/screens/NotificationsScreen';
 
 export default function App() {
   // Session State
+  const [isSessionChecking, setIsSessionChecking] = useState<boolean>(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [campuses, setCampuses] = useState<Campus[]>([
@@ -39,20 +40,44 @@ export default function App() {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState<boolean>(false);
 
-  // 1. Initial Load: Fetch Campuses
+  // 1. Initial Load: Check Persisted Session & Fetch Campuses
   useEffect(() => {
-    async function loadCampuses() {
+    async function bootstrapApp() {
       try {
+        const { tokens, user } = await MobileApiClient.init();
+        if (tokens.accessToken || tokens.refreshToken) {
+          if (user) {
+            setCurrentUser(user);
+            setIsAuthenticated(true);
+          }
+          // Verify session in background or restore full profile
+          try {
+            const meRes: any = await MobileApiClient.getCurrentUser();
+            if (meRes?.data) {
+              setCurrentUser(meRes.data);
+              setIsAuthenticated(true);
+            }
+          } catch {
+            // Token refresh failed or session invalidated
+            if (!MobileApiClient.getAccessToken()) {
+              setIsAuthenticated(false);
+              setCurrentUser(null);
+            }
+          }
+        }
+
         const res: any = await MobileApiClient.getCampuses();
         if (res.data && res.data.length > 0) {
           setCampuses(res.data);
-          setSelectedCampus(res.data[0]);
+          setSelectedCampus((prev) => prev || res.data[0]);
         }
       } catch (err: any) {
-        console.error('Failed to load campuses', err);
+        console.warn('App bootstrap notice:', err);
+      } finally {
+        setIsSessionChecking(false);
       }
     }
-    loadCampuses();
+    bootstrapApp();
   }, []);
 
   // 2. Fetch Tickets & Notifications when Authenticated
@@ -154,13 +179,26 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    MobileApiClient.clearAuth();
+  const handleLogout = async () => {
+    await MobileApiClient.clearAuth();
     setIsAuthenticated(false);
     setCurrentUser(null);
     setCampusTickets([]);
     setNotifications([]);
   };
+
+  if (isSessionChecking) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.logoBadge}>
+          <Text style={styles.logoText}>U</Text>
+        </View>
+        <ActivityIndicator size="large" color="#0284c7" style={{ marginTop: 20 }} />
+        <Text style={[styles.appSubtitle, { marginTop: 12 }]}>Restoring session...</Text>
+      </SafeAreaView>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
