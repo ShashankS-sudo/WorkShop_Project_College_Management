@@ -200,12 +200,13 @@ export const ticketTypeSchema = z.enum(['ISSUE', 'SERVICE_REQUEST']);
 /** Schema for creating a new ticket (Report) */
 export const createTicketSchema = z.object({
   title: z.string().min(3).max(200),
-  description: z.string().min(10).max(5000),
-  campusId: z.string().uuid(),
-  locationId: z.string().uuid().optional(),
-  locationText: z.string().optional(),
-  categoryId: z.string().uuid().optional(),
-  departmentId: z.string().uuid().optional(),
+  description: z.string().min(5).max(5000),
+  campusId: z.string().min(1),
+  locationId: z.string().min(1).optional().nullable(),
+  locationText: z.string().optional().nullable(),
+  locationDetails: z.string().optional().nullable(),
+  categoryId: z.string().min(1).optional().nullable(),
+  departmentId: z.string().min(1).optional().nullable(),
   ticketType: ticketTypeSchema.default('ISSUE'),
   severity: ticketSeveritySchema.default('MODERATE'),
   impact: ticketImpactSchema.default('INDIVIDUAL'),
@@ -248,8 +249,8 @@ export const acknowledgeTicketSchema = z.object({
 
 /** Schema for assigning a ticket */
 export const assignTicketSchema = z.object({
-  assigneeId: z.string().uuid().optional(),
-  departmentId: z.string().uuid().optional(),
+  assigneeId: z.string().min(1).optional().nullable(),
+  departmentId: z.string().min(1).optional().nullable(),
   notes: z.string().optional(),
 });
 
@@ -276,7 +277,7 @@ export const overridePrioritySchema = z.object({
 
 /** Schema for marking as duplicate */
 export const markDuplicateSchema = z.object({
-  canonicalTicketId: z.string().uuid(),
+  canonicalTicketId: z.string().min(1),
   reason: z.string().optional(),
 });
 
@@ -421,14 +422,14 @@ export const notificationSchema = baseSchema.extend({
 
 export const requestOTPSchema = z.object({
   identifier: z.string().min(3), // phone or email
-  campusId: z.string().uuid(),
+  campusId: z.string().min(1),
   isAnonymous: z.boolean().default(false),
 });
 
 export const verifyOTPSchema = z.object({
   identifier: z.string().min(3),
   code: z.string().length(6),
-  campusId: z.string().uuid(),
+  campusId: z.string().min(1),
   isAnonymous: z.boolean().default(false),
   displayName: z.string().optional(),
 });
@@ -440,8 +441,8 @@ export const refreshTokenSchema = z.object({
 // ========== AI SCHEMAS ==========
 
 export const aiParseRequestSchema = z.object({
-  campusId: z.string().uuid(),
-  text: z.string().min(5).max(3000),
+  campusId: z.string().min(1),
+  text: z.string().min(3).max(3000),
 });
 
 export const aiFollowUpRequestSchema = z.object({
@@ -451,9 +452,10 @@ export const aiFollowUpRequestSchema = z.object({
 });
 
 export const aiSimilarityRequestSchema = z.object({
-  campusId: z.string().uuid(),
-  title: z.string().min(3),
-  description: z.string().min(5),
+  campusId: z.string().min(1),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  text: z.string().optional(),
   location: z.string().optional(),
 });
 

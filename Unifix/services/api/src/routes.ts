@@ -1,6 +1,24 @@
 // API Routes - Unifix v1
 import express from 'express';
 import { authenticate, authorize } from './middleware/auth';
+import { validateBody } from './middleware/validate';
+import {
+  requestOTPSchema,
+  verifyOTPSchema,
+  refreshTokenSchema,
+  createCampusSchema,
+  createTicketSchema,
+  acknowledgeTicketSchema,
+  assignTicketSchema,
+  recordProgressSchema,
+  overridePrioritySchema,
+  resolveTicketSchema,
+  reopenTicketSchema,
+  markDuplicateSchema,
+  createCommentSchema,
+  aiParseRequestSchema,
+  aiSimilarityRequestSchema,
+} from '@unifix/shared-schemas';
 import * as authController from './controllers/authController';
 import * as campusController from './controllers/campusController';
 import * as ticketController from './controllers/ticketController';
@@ -40,9 +58,9 @@ router.post(
 // ==========================================
 // 2. Authentication & Onboarding
 // ==========================================
-router.post('/auth/request-otp', authController.requestOTP);
-router.post('/auth/verify-otp', authController.verifyOTP);
-router.post('/auth/refresh', authController.refreshToken);
+router.post('/auth/request-otp', validateBody(requestOTPSchema), authController.requestOTP);
+router.post('/auth/verify-otp', validateBody(verifyOTPSchema), authController.verifyOTP);
+router.post('/auth/refresh', validateBody(refreshTokenSchema), authController.refreshToken);
 router.post('/auth/logout', authController.logout);
 router.get('/auth/me', authenticate, authController.getCurrentUser);
 
@@ -56,6 +74,7 @@ router.post(
   '/campuses',
   authenticate,
   authorize(['SUPERMANAGEMENT']),
+  validateBody(createCampusSchema),
   campusController.createCampus
 );
 
@@ -63,55 +82,81 @@ router.post(
 // 4. Ticket System (Campus Boundary Enforced)
 // ==========================================
 router.get('/tickets', authenticate, ticketController.listTickets);
-router.post('/tickets', authenticate, ticketController.createTicket);
+router.post('/tickets', authenticate, validateBody(createTicketSchema), ticketController.createTicket);
 router.get('/tickets/:ticketId', authenticate, ticketController.getTicketDetails);
 router.post('/tickets/:ticketId/endorse', authenticate, ticketController.endorseTicket);
-router.post('/tickets/:ticketId/comments', authenticate, ticketController.addComment);
-router.post('/tickets/:ticketId/reopen', authenticate, ticketController.reopenTicket);
+router.post(
+  '/tickets/:ticketId/comments',
+  authenticate,
+  validateBody(createCommentSchema),
+  ticketController.addComment
+);
+router.post(
+  '/tickets/:ticketId/reopen',
+  authenticate,
+  validateBody(reopenTicketSchema),
+  ticketController.reopenTicket
+);
 
 // Management Ticket Operations
 router.post(
   '/tickets/:ticketId/acknowledge',
   authenticate,
   authorize(['MANAGEMENT', 'SUPERMANAGEMENT']),
+  validateBody(acknowledgeTicketSchema),
   ticketController.acknowledgeTicket
 );
 router.post(
   '/tickets/:ticketId/assign',
   authenticate,
   authorize(['MANAGEMENT', 'SUPERMANAGEMENT']),
+  validateBody(assignTicketSchema),
   ticketController.assignTicket
 );
 router.post(
   '/tickets/:ticketId/progress',
   authenticate,
   authorize(['MANAGEMENT', 'SUPERMANAGEMENT']),
+  validateBody(recordProgressSchema),
   ticketController.recordProgress
 );
 router.post(
   '/tickets/:ticketId/priority',
   authenticate,
   authorize(['MANAGEMENT', 'SUPERMANAGEMENT']),
+  validateBody(overridePrioritySchema),
   ticketController.overridePriority
 );
 router.post(
   '/tickets/:ticketId/resolve',
   authenticate,
   authorize(['MANAGEMENT', 'SUPERMANAGEMENT']),
+  validateBody(resolveTicketSchema),
   ticketController.resolveTicket
 );
 router.post(
   '/tickets/:ticketId/duplicate',
   authenticate,
   authorize(['MANAGEMENT', 'SUPERMANAGEMENT']),
+  validateBody(markDuplicateSchema),
   ticketController.markDuplicate
 );
 
 // ==========================================
 // 5. AI Intelligence Endpoints
 // ==========================================
-router.post('/ai/parse', authenticate, aiController.parseIssueDescription);
-router.post('/ai/similarity', authenticate, aiController.checkSimilarity);
+router.post(
+  '/ai/parse',
+  authenticate,
+  validateBody(aiParseRequestSchema),
+  aiController.parseIssueDescription
+);
+router.post(
+  '/ai/similarity',
+  authenticate,
+  validateBody(aiSimilarityRequestSchema),
+  aiController.checkSimilarity
+);
 router.get(
   '/ai/insights',
   authenticate,
