@@ -12,6 +12,8 @@ import {
   Flame,
   ArrowUpRight,
   RefreshCw,
+  Activity,
+  Zap,
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -60,6 +62,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [schedulerStatus, setSchedulerStatus] = useState<any>(null);
+  const [isTriggeringEscalation, setIsTriggeringEscalation] = useState<boolean>(false);
+  const [escalationMessage, setEscalationMessage] = useState<string | null>(null);
+
+  const fetchSchedulerStatus = async () => {
+    try {
+      const res = await ApiClient.getSchedulerStatus();
+      if (res.data) setSchedulerStatus(res.data);
+    } catch {
+      // Non-fatal if regular user
+    }
+  };
+
+  const handleTriggerEscalation = async () => {
+    setIsTriggeringEscalation(true);
+    setEscalationMessage(null);
+    try {
+      const res = await ApiClient.triggerEscalationCheck();
+      const count = res.data?.escalationsTriggered ?? 0;
+      setEscalationMessage(`SLA check executed: ${count} ticket(s) escalated.`);
+      await fetchStats();
+      await fetchSchedulerStatus();
+    } catch (err: any) {
+      setEscalationMessage(`Check failed: ${err.message}`);
+    } finally {
+      setIsTriggeringEscalation(false);
+    }
+  };
 
   const fetchStats = async () => {
     if (!activeCampus) return;
@@ -77,6 +107,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   useEffect(() => {
     fetchStats();
+    fetchSchedulerStatus();
   }, [activeCampus]);
 
   // Real-time dashboard KPI listener
@@ -159,6 +190,51 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           {error}
         </div>
       )}
+
+      {/* SLA Worker Pulse & Monitoring Bar */}
+      <div className="card p-4 bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-md">
+        <div className="flex items-center gap-3.5">
+          <div className="p-2.5 rounded-xl bg-white/10 text-emerald-400">
+            <Activity className="w-5 h-5 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-xs tracking-wide">Automated SLA Escalation Worker</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  schedulerStatus?.status === 'RUNNING'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300'
+                }`}
+              >
+                ● {schedulerStatus?.status || 'RUNNING'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              Cycle: Every {schedulerStatus?.intervalMs ? schedulerStatus.intervalMs / 60000 : 5} mins • 
+              Total Runs: {schedulerStatus?.totalRuns ?? 0} • 
+              Escalations Triggered: {schedulerStatus?.totalEscalationsTriggered ?? 0} • 
+              Last Checked: {schedulerStatus?.lastRunAt ? new Date(schedulerStatus.lastRunAt).toLocaleTimeString() : 'Just now'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {escalationMessage && (
+            <span className="text-[11px] text-emerald-300 bg-emerald-950/60 px-2.5 py-1 rounded border border-emerald-800">
+              {escalationMessage}
+            </span>
+          )}
+          <button
+            onClick={handleTriggerEscalation}
+            disabled={isTriggeringEscalation}
+            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow transition-all disabled:opacity-50"
+          >
+            <Zap className={`w-3.5 h-3.5 ${isTriggeringEscalation ? 'animate-spin' : ''}`} />
+            {isTriggeringEscalation ? 'Checking...' : 'Run SLA Check Now'}
+          </button>
+        </div>
+      </div>
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3.5">

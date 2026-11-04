@@ -24,6 +24,7 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~3.2.3",
     "@prisma/client": "^5.22.0",
     "@types/cors": "^2.8.19",
     "@types/helmet": "^4.0.0",

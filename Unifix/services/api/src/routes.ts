@@ -3,6 +3,11 @@ import express from 'express';
 import { authenticate, authorize } from './middleware/auth';
 import { validateBody } from './middleware/validate';
 import {
+  otpRequestRateLimiter,
+  otpVerifyRateLimiter,
+  authGeneralRateLimiter,
+} from './middleware/rateLimit';
+import {
   requestOTPSchema,
   verifyOTPSchema,
   refreshTokenSchema,
@@ -28,6 +33,7 @@ import * as managementController from './controllers/managementController';
 import * as notificationController from './controllers/notificationController';
 import * as attachmentController from './controllers/attachmentController';
 import { runEscalationCheck } from './lib/escalationEngine';
+import { escalationScheduler } from './lib/scheduler';
 
 const router = express.Router();
 
@@ -49,20 +55,45 @@ router.post(
   authorize(['SUPERMANAGEMENT', 'MANAGEMENT']),
   async (req, res) => {
     try {
-      const result = await runEscalationCheck();
-      res.json({ data: result });
+      const result = await escalationScheduler.forceRun();
+      res.json({ message: 'Escalation check completed', data: result });
     } catch (err: any) {
       res.status(500).json({ error: 'Failed to run escalation check', details: err.message });
     }
   }
 );
 
+router.get(
+  '/operational/scheduler-status',
+  authenticate,
+  authorize(['SUPERMANAGEMENT', 'MANAGEMENT']),
+  (req, res) => {
+    const status = escalationScheduler.getStatus();
+    res.json({ data: status });
+  }
+);
+
 // ==========================================
 // 2. Authentication & Onboarding
 // ==========================================
-router.post('/auth/request-otp', validateBody(requestOTPSchema), authController.requestOTP);
-router.post('/auth/verify-otp', validateBody(verifyOTPSchema), authController.verifyOTP);
-router.post('/auth/refresh', validateBody(refreshTokenSchema), authController.refreshToken);
+router.post(
+  '/auth/request-otp',
+  otpRequestRateLimiter,
+  validateBody(requestOTPSchema),
+  authController.requestOTP
+);
+router.post(
+  '/auth/verify-otp',
+  otpVerifyRateLimiter,
+  validateBody(verifyOTPSchema),
+  authController.verifyOTP
+);
+router.post(
+  '/auth/refresh',
+  authGeneralRateLimiter,
+  validateBody(refreshTokenSchema),
+  authController.refreshToken
+);
 router.post('/auth/logout', authController.logout);
 router.get('/auth/me', authenticate, authController.getCurrentUser);
 

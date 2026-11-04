@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,20 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Platform,
+  Image,
 } from 'react-native';
 import { styles, colors } from '../styles/theme';
 import { Campus, AIAnalysisResult } from '../types';
 import { MobileApiClient } from '../api/mobileClient';
+
+interface UploadedMedia {
+  filename: string;
+  filepath: string;
+  url: string;
+  mimeType: string;
+  size: number;
+}
 
 interface ReportScreenProps {
   campus: Campus | null;
@@ -28,6 +38,8 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [similarTickets, setSimilarTickets] = useState<any[]>([]);
+  const [isCheckingSimilarity, setIsCheckingSimilarity] = useState<boolean>(false);
+  const [similarityIgnored, setSimilarityIgnored] = useState<boolean>(false);
 
   // Form Fields
   const [reportTitle, setReportTitle] = useState<string>('');
@@ -37,11 +49,93 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
   const [reportIsAnonymous, setReportIsAnonymous] = useState<boolean>(false);
   const [isSubmittingReport, setIsSubmittingReport] = useState<boolean>(false);
 
+  // Media Attachments
+  const [attachments, setAttachments] = useState<UploadedMedia[]>([]);
+  const [isUploadingMedia, setIsUploadingMedia] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const notifyUser = (title: string, message: string) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+      window.alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
+  const handlePickAndUploadMedia = () => {
+    setUploadError(null);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,video/*,application/pdf';
+      input.onchange = async (e: any) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+
+        setIsUploadingMedia(true);
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const res: any = await MobileApiClient.uploadAttachment(formData);
+          if (res?.data) {
+            setAttachments((prev) => [...prev, res.data]);
+          }
+        } catch (err: any) {
+          setUploadError(err.message || 'Failed to upload media file.');
+        } finally {
+          setIsUploadingMedia(false);
+        }
+      };
+      input.click();
+    } else {
+      notifyUser('Notice', 'Media upload is available in web preview or with camera roll permissions.');
+    }
+  };
+
+  const handleRemoveAttachment = (filepath: string) => {
+    setAttachments((prev) => prev.filter((a) => a.filepath !== filepath));
+  };
+
+  // Debounced real-time similarity check on manual inputs
+  useEffect(() => {
+    if (reportingMode !== 'manual' || !campus || similarityIgnored) return;
+
+    const query = `${reportTitle} ${reportDescription}`.trim();
+    if (query.length < 8) {
+      setSimilarTickets([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsCheckingSimilarity(true);
+      try {
+        const simRes: any = await MobileApiClient.checkSimilarityWithAI(
+          campus.id,
+          reportDescription || reportTitle,
+          reportTitle,
+          reportLocation
+        );
+        if (simRes.data && simRes.data.length > 0) {
+          setSimilarTickets(simRes.data);
+        } else {
+          setSimilarTickets([]);
+        }
+      } catch {
+        // Non-fatal
+      } finally {
+        setIsCheckingSimilarity(false);
+      }
+    }, 650);
+
+    return () => clearTimeout(timer);
+  }, [reportTitle, reportDescription, reportLocation, campus?.id, reportingMode, similarityIgnored]);
+
   const handleAnalyzeWithAI = async () => {
     if (!aiPrompt.trim() || !campus) return;
 
     setIsAnalyzing(true);
     setSimilarTickets([]);
+    setSimilarityIgnored(false);
     setAiAnalysisResult(null);
 
     try {
@@ -76,11 +170,11 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
 
   const handleSubmitTicket = async () => {
     if (!reportTitle.trim()) {
-      Alert.alert('Validation Error', 'Please enter an issue title.');
+      notifyUser('Validation Error', 'Please enter an issue title.');
       return;
     }
     if (!reportDescription.trim()) {
-      Alert.alert('Validation Error', 'Please describe the problem.');
+      notifyUser('Validation Error', 'Please describe the problem.');
       return;
     }
     if (!campus) return;
@@ -94,9 +188,15 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
         severity: reportSeverity,
         locationDetails: reportLocation.trim() || undefined,
         isAnonymous: reportIsAnonymous,
+        attachments: attachments.map((a) => ({
+          filename: a.filename,
+          filepath: a.filepath,
+          mimeType: a.mimeType,
+          size: a.size,
+        })),
       });
 
-      Alert.alert('Success', 'Your issue report has been queued for campus maintenance action.');
+      notifyUser('Success', 'Your issue report has been queued for campus maintenance action.');
 
       // Reset
       setAiPrompt('');
@@ -105,21 +205,138 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
       setReportLocation('');
       setAiAnalysisResult(null);
       setSimilarTickets([]);
+      setSimilarityIgnored(false);
+      setAttachments([]);
 
       onTicketCreated();
     } catch (err: any) {
-      Alert.alert('Submission Failed', err.message || 'Could not submit issue.');
+      notifyUser('Submission Failed', err.message || 'Could not submit issue.');
     } finally {
       setIsSubmittingReport(false);
     }
   };
+
+  const renderMediaUploader = () => (
+    <View style={{ marginTop: 12, marginBottom: 12 }}>
+      <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>Photo / Video Evidence (Optional)</Text>
+      <TouchableOpacity
+        onPress={handlePickAndUploadMedia}
+        disabled={isUploadingMedia}
+        style={{
+          borderWidth: 1.5,
+          borderStyle: 'dashed',
+          borderColor: '#93c5fd',
+          backgroundColor: '#eff6ff',
+          borderRadius: 10,
+          paddingVertical: 14,
+          paddingHorizontal: 16,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {isUploadingMedia ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={{ marginLeft: 8, color: '#1e40af', fontSize: 13, fontWeight: '600' }}>
+              Uploading media attachment...
+            </Text>
+          </View>
+        ) : (
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ color: '#2563eb', fontSize: 14, fontWeight: '700' }}>
+              📷 🎥 + Add Photo or Video
+            </Text>
+            <Text style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>
+              Supports Images (JPG, PNG, WEBP), Videos (MP4, MOV), & Documents (PDF) up to 50MB
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {uploadError && (
+        <View style={{ backgroundColor: '#fee2e2', borderRadius: 6, padding: 8, marginTop: 6 }}>
+          <Text style={{ color: '#b91c1c', fontSize: 12 }}>⚠️ {uploadError}</Text>
+        </View>
+      )}
+
+      {attachments.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+          {attachments.map((att, idx) => {
+            const isImg = att.mimeType?.startsWith('image/');
+            const isVideo = att.mimeType?.startsWith('video/');
+            const imgUri = att.url?.startsWith('http')
+              ? att.url
+              : `http://localhost:3000${att.url}`;
+
+            return (
+              <View key={idx} style={{ marginRight: 10, alignItems: 'center', width: 84 }}>
+                <View
+                  style={{
+                    width: 76,
+                    height: 76,
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    backgroundColor: '#e2e8f0',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    position: 'relative',
+                    borderWidth: 1,
+                    borderColor: '#cbd5e1',
+                  }}
+                >
+                  {isImg ? (
+                    <Image source={{ uri: imgUri }} style={{ width: 76, height: 76 }} />
+                  ) : isVideo ? (
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ fontSize: 22 }}>🎥</Text>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: '#1e293b' }}>VIDEO</Text>
+                    </View>
+                  ) : (
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ fontSize: 22 }}>📄</Text>
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: '#1e293b' }}>PDF</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => handleRemoveAttachment(att.filepath)}
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 2,
+                      backgroundColor: 'rgba(0,0,0,0.65)',
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>×</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text
+                  numberOfLines={1}
+                  style={{ fontSize: 10, color: '#475569', marginTop: 4, width: 76, textAlign: 'center' }}
+                >
+                  {att.filename}
+                </Text>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+    </View>
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       {/* Mode Switcher */}
       <View style={styles.modeTabs}>
         <TouchableOpacity
-          onPress={() => setReportingMode('ai')}
+          onPress={() => {
+            setReportingMode('ai');
+            setSimilarityIgnored(false);
+          }}
           style={[styles.modeTab, reportingMode === 'ai' && styles.modeTabActive]}
         >
           <Text style={[styles.modeTabText, reportingMode === 'ai' && styles.modeTabTextActive]}>
@@ -127,7 +344,10 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => setReportingMode('manual')}
+          onPress={() => {
+            setReportingMode('manual');
+            setSimilarityIgnored(false);
+          }}
           style={[styles.modeTab, reportingMode === 'manual' && styles.modeTabActive]}
         >
           <Text style={[styles.modeTabText, reportingMode === 'manual' && styles.modeTabTextActive]}>
@@ -165,11 +385,14 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
           </TouchableOpacity>
 
           {/* Similar Tickets Warning */}
-          {similarTickets.length > 0 && (
+          {similarTickets.length > 0 && !similarityIgnored && (
             <View style={styles.duplicateBox}>
-              <Text style={styles.duplicateTitle}>Similar Existing Reports Detected</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.duplicateTitle}>⚡ Similar Issue Already Reported</Text>
+                {isCheckingSimilarity && <ActivityIndicator size="small" color={colors.primary} />}
+              </View>
               <Text style={styles.duplicateSubtitle}>
-                Has someone already reported this? Tap "I have this issue too" to endorse it:
+                Campus maintenance is already tracking this! Save time by endorsing it instead:
               </Text>
               {similarTickets.map((st) => (
                 <View key={st.ticketId} style={styles.duplicateItem}>
@@ -179,10 +402,18 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
                     onPress={() => onEndorseExisting(st.ticketId)}
                     style={styles.endorseButton}
                   >
-                    <Text style={styles.endorseButtonText}>I have this issue too</Text>
+                    <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
                   </TouchableOpacity>
                 </View>
               ))}
+              <TouchableOpacity
+                onPress={() => setSimilarityIgnored(true)}
+                style={{ marginTop: 8, paddingVertical: 4, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 11, color: '#6b7280', textDecorationLine: 'underline' }}>
+                  My issue is different, proceed with submission
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -224,6 +455,9 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
                 </View>
               )}
 
+              {/* Photo / Video Uploader */}
+              {renderMediaUploader()}
+
               <TouchableOpacity
                 onPress={() => setReportIsAnonymous(!reportIsAnonymous)}
                 style={styles.anonToggle}
@@ -247,7 +481,7 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
           )}
         </View>
       ) : (
-        /* Mode A: Manual Form */
+        /* Mode B: Manual Form */
         <View style={styles.card}>
           <Text style={styles.cardHeading}>Manual Issue Form</Text>
 
@@ -268,6 +502,39 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
             onChangeText={setReportDescription}
             placeholder="Explain what is broken or malfunctioning..."
           />
+
+          {/* Interactive Similar Issues Warning for Manual Form */}
+          {similarTickets.length > 0 && !similarityIgnored && (
+            <View style={styles.duplicateBox}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.duplicateTitle}>⚡ Similar Issue Already Reported Nearby</Text>
+                {isCheckingSimilarity && <ActivityIndicator size="small" color={colors.primary} />}
+              </View>
+              <Text style={styles.duplicateSubtitle}>
+                Campus maintenance is already tracking this issue. You can endorse it instead of creating a duplicate:
+              </Text>
+              {similarTickets.map((st) => (
+                <View key={st.ticketId} style={styles.duplicateItem}>
+                  <Text style={styles.duplicateItemTitle}>{st.title}</Text>
+                  <Text style={styles.duplicateItemReason}>{st.explanation}</Text>
+                  <TouchableOpacity
+                    onPress={() => onEndorseExisting(st.ticketId)}
+                    style={styles.endorseButton}
+                  >
+                    <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity
+                onPress={() => setSimilarityIgnored(true)}
+                style={{ marginTop: 8, paddingVertical: 4, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 11, color: '#6b7280', textDecorationLine: 'underline' }}>
+                  My issue is different, proceed with submission
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <Text style={styles.fieldLabel}>Location (Building / Floor / Room)</Text>
           <TextInput
@@ -299,6 +566,9 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Photo / Video Uploader */}
+          {renderMediaUploader()}
 
           <TouchableOpacity
             onPress={() => setReportIsAnonymous(!reportIsAnonymous)}

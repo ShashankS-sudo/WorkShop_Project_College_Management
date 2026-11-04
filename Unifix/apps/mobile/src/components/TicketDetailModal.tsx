@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { styles, getStageCountdown, colors } from '../styles/theme';
 import { Ticket, User } from '../types';
+import { MobileApiClient } from '../api/mobileClient';
 
 interface TicketDetailModalProps {
   visible: boolean;
@@ -41,6 +43,55 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
   const [isReopening, setIsReopening] = useState<boolean>(false);
   const [reopenReason, setReopenReason] = useState<string>('');
   const [isSubmittingReopen, setIsSubmittingReopen] = useState<boolean>(false);
+
+  // Attachments State
+  const [attachments, setAttachments] = useState<any[]>(ticket?.attachments || []);
+  const [isUploadingMedia, setIsUploadingMedia] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAttachments(ticket?.attachments || []);
+    setUploadError(null);
+  }, [ticket?.id, ticket?.attachments]);
+
+  const handleAddMedia = () => {
+    if (!ticket) return;
+    setUploadError(null);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*,video/*,application/pdf';
+      input.onchange = async (e: any) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+
+        setIsUploadingMedia(true);
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const uploadRes: any = await MobileApiClient.uploadAttachment(formData);
+          if (uploadRes?.data) {
+            const { filename, filepath, mimeType, size } = uploadRes.data;
+            const attachRes: any = await MobileApiClient.addTicketAttachment(ticket.id, {
+              filename,
+              filepath,
+              mimeType,
+              size,
+            });
+            const newAtt = attachRes.attachment || attachRes.data || uploadRes.data;
+            setAttachments((prev) => [...prev, newAtt]);
+          }
+        } catch (err: any) {
+          setUploadError(err.message || 'Failed to upload attachment.');
+        } finally {
+          setIsUploadingMedia(false);
+        }
+      };
+      input.click();
+    } else {
+      Alert.alert('Notice', 'Media upload is available in web preview or with camera roll permissions.');
+    }
+  };
 
   const handlePostComment = async () => {
     if (!commentInput.trim() || isPostingComment) return;
@@ -155,29 +206,79 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
               </TouchableOpacity>
 
               {/* Attachments Section */}
-              {ticket.attachments && ticket.attachments.length > 0 && (
-                <View style={[styles.metaCard, { marginTop: 12 }]}>
-                  <Text style={[styles.metaLabel, { marginBottom: 8, fontSize: 13 }]}>
-                    Photo & Document Attachments ({ticket.attachments.length})
+              <View style={[styles.metaCard, { marginTop: 12 }]}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={[styles.metaLabel, { fontSize: 13, marginBottom: 0 }]}>
+                    Photo & Video Evidence ({attachments.length})
                   </Text>
+                  {ticket.status !== 'CLOSED' && (
+                    <TouchableOpacity
+                      onPress={handleAddMedia}
+                      disabled={isUploadingMedia}
+                      style={{
+                        backgroundColor: '#eff6ff',
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: '#bfdbfe',
+                      }}
+                    >
+                      {isUploadingMedia ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#2563eb' }}>
+                          + Add Photo / Video
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {uploadError && (
+                  <View style={{ backgroundColor: '#fee2e2', borderRadius: 6, padding: 8, marginBottom: 8 }}>
+                    <Text style={{ color: '#b91c1c', fontSize: 12 }}>⚠️ {uploadError}</Text>
+                  </View>
+                )}
+
+                {attachments.length > 0 ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {ticket.attachments.map((att: any) => {
+                    {attachments.map((att: any) => {
                       const isImg = att.mimeType?.startsWith('image/');
+                      const isVideo = att.mimeType?.startsWith('video/');
                       const imgUri = att.filepath?.startsWith('http')
                         ? att.filepath
+                        : att.url?.startsWith('http')
+                        ? att.url
                         : `http://localhost:3000/uploads/attachments/${att.filepath}`;
                       return (
-                        <View key={att.id} style={{ marginRight: 10, alignItems: 'center', width: 90 }}>
+                        <View key={att.id || att.filepath} style={{ marginRight: 10, alignItems: 'center', width: 84 }}>
                           {isImg ? (
                             <Image
                               source={{ uri: imgUri }}
-                              style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: '#f3f4f6' }}
+                              style={{ width: 76, height: 76, borderRadius: 8, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e2e8f0' }}
                             />
+                          ) : isVideo ? (
+                            <View
+                              style={{
+                                width: 76,
+                                height: 76,
+                                borderRadius: 8,
+                                backgroundColor: '#f1f5f9',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                borderWidth: 1,
+                                borderColor: '#cbd5e1',
+                              }}
+                            >
+                              <Text style={{ fontSize: 24 }}>🎥</Text>
+                              <Text style={{ fontSize: 9, fontWeight: '700', color: '#334155', marginTop: 2 }}>VIDEO</Text>
+                            </View>
                           ) : (
                             <View
                               style={{
-                                width: 80,
-                                height: 80,
+                                width: 76,
+                                height: 76,
                                 borderRadius: 8,
                                 backgroundColor: '#e0f2fe',
                                 justifyContent: 'center',
@@ -189,7 +290,7 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                           )}
                           <Text
                             numberOfLines={1}
-                            style={{ fontSize: 11, color: '#4b5563', marginTop: 4, textAlign: 'center' }}
+                            style={{ fontSize: 10, color: '#4b5563', marginTop: 4, width: 76, textAlign: 'center' }}
                           >
                             {att.filename}
                           </Text>
@@ -197,8 +298,12 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                       );
                     })}
                   </ScrollView>
-                </View>
-              )}
+                ) : (
+                  <Text style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic', paddingVertical: 4 }}>
+                    No photos or videos attached to this issue yet.
+                  </Text>
+                )}
+              </View>
 
               {/* Resolution Box & Reopening Workflow */}
               {ticket.status === 'RESOLVED' && (

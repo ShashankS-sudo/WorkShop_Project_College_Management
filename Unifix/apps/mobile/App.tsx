@@ -12,6 +12,8 @@ import { ReportScreen } from './src/screens/ReportScreen';
 import { BrowseScreen } from './src/screens/BrowseScreen';
 import { MyTicketsScreen } from './src/screens/MyTicketsScreen';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
+import { SocketProvider, useSocket } from './src/context/SocketContext';
+import { SocketEvent } from '@unifix/shared-types';
 
 export default function App() {
   // Session State
@@ -28,17 +30,6 @@ export default function App() {
     name: 'Pacific Science & Tech Campus',
     code: 'PSTC',
   });
-
-  // Navigation & Data
-  const [activeTab, setActiveTab] = useState<TabKey>('report');
-  const [campusTickets, setCampusTickets] = useState<Ticket[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
-
-  // Selected Ticket Modal State
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
-  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
-  const [isDetailLoading, setIsDetailLoading] = useState<boolean>(false);
 
   // 1. Initial Load: Check Persisted Session & Fetch Campuses
   useEffect(() => {
@@ -69,7 +60,13 @@ export default function App() {
         const res: any = await MobileApiClient.getCampuses();
         if (res.data && res.data.length > 0) {
           setCampuses(res.data);
-          setSelectedCampus((prev) => prev || res.data[0]);
+          setSelectedCampus((prev) => {
+            if (!prev || prev.id.startsWith('campus-')) {
+              const pstc = res.data.find((c: any) => c.code === 'PSTC');
+              return pstc || res.data[0];
+            }
+            return prev;
+          });
         }
       } catch (err: any) {
         console.warn('App bootstrap notice:', err);
@@ -80,7 +77,71 @@ export default function App() {
     bootstrapApp();
   }, []);
 
-  // 2. Fetch Tickets & Notifications when Authenticated
+  const handleLogout = async () => {
+    await MobileApiClient.clearAuth();
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+  };
+
+  if (isSessionChecking) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.logoBadge}>
+          <Text style={styles.logoText}>U</Text>
+        </View>
+        <ActivityIndicator size="large" color="#0284c7" style={{ marginTop: 20 }} />
+        <Text style={[styles.appSubtitle, { marginTop: 12 }]}>Restoring session...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <AuthScreen
+        campuses={campuses}
+        selectedCampus={selectedCampus}
+        onSelectCampus={setSelectedCampus}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          setIsAuthenticated(true);
+        }}
+      />
+    );
+  }
+
+  return (
+    <SocketProvider isAuthenticated={isAuthenticated} campusId={selectedCampus?.id}>
+      <AuthenticatedMainView
+        selectedCampus={selectedCampus}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+      />
+    </SocketProvider>
+  );
+}
+
+interface AuthenticatedMainViewProps {
+  selectedCampus: Campus | null;
+  currentUser: User | null;
+  onLogout: () => Promise<void>;
+}
+
+function AuthenticatedMainView({ selectedCampus, currentUser, onLogout }: AuthenticatedMainViewProps) {
+  const { socket, isConnected, joinRoom, leaveRoom } = useSocket();
+
+  // Navigation & Data
+  const [activeTab, setActiveTab] = useState<TabKey>('report');
+  const [campusTickets, setCampusTickets] = useState<Ticket[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(false);
+
+  // Selected Ticket Modal State
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState<boolean>(false);
+
+  // Fetch Tickets & Notifications
   const loadTickets = async () => {
     if (!selectedCampus) return;
     setIsDataLoading(true);
@@ -104,11 +165,11 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (isAuthenticated && selectedCampus) {
+    if (selectedCampus) {
       loadTickets();
       loadNotifications();
     }
-  }, [isAuthenticated, selectedCampus, activeTab]);
+  }, [selectedCampus, activeTab]);
 
   // Open Ticket Details Modal
   const openTicketDetails = async (ticketId: string) => {
@@ -123,6 +184,138 @@ export default function App() {
       setIsDetailLoading(false);
     }
   };
+
+  // Real-Time Socket.io Listeners for Live Mobile Synchronization
+  useEffect(() => {
+    if (!socket) return;
+
+    // 1. New ticket created on this campus
+    const handleTicketCreated = (data: any) => {
+      if (data.ticket && data.campusId === selectedCampus?.id) {
+        setCampusTickets((prev) => {
+          const exists = prev.some((t) => t.id === data.ticket.id);
+          if (exists) return prev;
+          return [data.ticket, ...prev];
+        });
+      }
+    };
+
+    // 2. Ticket updated, stage escalated, or status changed
+    const handleTicketUpdated = (data: any) => {
+      const updatedTicketId = data.ticketId || data.ticket?.id;
+      if (!updatedTicketId) return;
+
+      setCampusTickets((prev) =>
+        prev.map((t) => {
+          if (t.id === updatedTicketId) {
+            return {
+              ...t,
+              ...(data.ticket || {}),
+              status: data.ticket?.status || t.status,
+              currentStage: data.ticket?.currentStage || t.currentStage,
+              escalationCount: data.ticket?.escalationCount ?? t.escalationCount,
+            };
+          }
+          return t;
+        })
+      );
+
+      // If user currently viewing this ticket in the modal, refresh details
+      if (selectedTicketId === updatedTicketId) {
+        MobileApiClient.getTicket(updatedTicketId)
+          .then((res: any) => {
+            if (res?.data) setSelectedTicket(res.data);
+          })
+          .catch(() => {});
+      }
+    };
+
+    // 3. Ticket Endorsed
+    const handleTicketEndorsed = (data: any) => {
+      const ticketId = data.ticketId;
+      if (!ticketId) return;
+
+      setCampusTickets((prev) =>
+        prev.map((t) => {
+          if (t.id === ticketId) {
+            return {
+              ...t,
+              _count: {
+                ...(t._count || {}),
+                endorsements: data.totalEndorsements ?? (t._count?.endorsements || 0) + 1,
+              },
+            };
+          }
+          return t;
+        })
+      );
+
+      if (selectedTicketId === ticketId) {
+        setSelectedTicket((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            _count: {
+              ...(prev._count || {}),
+              endorsements: data.totalEndorsements ?? (prev._count?.endorsements || 0) + 1,
+            },
+          };
+        });
+      }
+    };
+
+    // 4. Comment Added
+    const handleCommentAdded = (data: any) => {
+      if (data.ticketId === selectedTicketId && data.comment) {
+        setSelectedTicket((prev) => {
+          if (!prev) return prev;
+          const exists = prev.comments?.some((c) => c.id === data.comment.id);
+          if (exists) return prev;
+          return {
+            ...prev,
+            comments: [...(prev.comments || []), data.comment],
+          };
+        });
+      }
+    };
+
+    // 5. New Notification
+    const handleNotificationNew = (data: any) => {
+      if (data.notification) {
+        setNotifications((prev) => {
+          const exists = prev.some((n) => n.id === data.notification.id);
+          if (exists) return prev;
+          return [data.notification, ...prev];
+        });
+      }
+    };
+
+    socket.on(SocketEvent.TICKET_CREATED, handleTicketCreated);
+    socket.on(SocketEvent.TICKET_UPDATED, handleTicketUpdated);
+    socket.on(SocketEvent.TICKET_ESCALATED, handleTicketUpdated);
+    socket.on(SocketEvent.TICKET_ENDORSED, handleTicketEndorsed);
+    socket.on(SocketEvent.COMMENT_ADDED, handleCommentAdded);
+    socket.on(SocketEvent.NOTIFICATION_NEW, handleNotificationNew);
+
+    return () => {
+      socket.off(SocketEvent.TICKET_CREATED, handleTicketCreated);
+      socket.off(SocketEvent.TICKET_UPDATED, handleTicketUpdated);
+      socket.off(SocketEvent.TICKET_ESCALATED, handleTicketUpdated);
+      socket.off(SocketEvent.TICKET_ENDORSED, handleTicketEndorsed);
+      socket.off(SocketEvent.COMMENT_ADDED, handleCommentAdded);
+      socket.off(SocketEvent.NOTIFICATION_NEW, handleNotificationNew);
+    };
+  }, [socket, selectedCampus?.id, selectedTicketId]);
+
+  // Join focused ticket room when modal is open
+  useEffect(() => {
+    if (!socket || !selectedTicketId) return;
+
+    joinRoom(`ticket:${selectedTicketId}`);
+    return () => {
+      leaveRoom(`ticket:${selectedTicketId}`);
+    };
+  }, [socket, selectedTicketId]);
 
   const handleEndorse = async (ticketId: string) => {
     try {
@@ -179,49 +372,14 @@ export default function App() {
     }
   };
 
-  const handleLogout = async () => {
-    await MobileApiClient.clearAuth();
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    setCampusTickets([]);
-    setNotifications([]);
-  };
-
-  if (isSessionChecking) {
-    return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <StatusBar barStyle="dark-content" />
-        <View style={styles.logoBadge}>
-          <Text style={styles.logoText}>U</Text>
-        </View>
-        <ActivityIndicator size="large" color="#0284c7" style={{ marginTop: 20 }} />
-        <Text style={[styles.appSubtitle, { marginTop: 12 }]}>Restoring session...</Text>
-      </SafeAreaView>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <AuthScreen
-        campuses={campuses}
-        selectedCampus={selectedCampus}
-        onSelectCampus={setSelectedCampus}
-        onAuthSuccess={(user) => {
-          setCurrentUser(user);
-          setIsAuthenticated(true);
-        }}
-      />
-    );
-  }
-
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Top Header */}
-      <Header campus={selectedCampus} onLogout={handleLogout} />
+      {/* Top Header with Live Real-Time Status */}
+      <Header campus={selectedCampus} onLogout={onLogout} isLive={isConnected} />
 
       {/* Tab Screen Content */}
       <View style={styles.mainContent}>

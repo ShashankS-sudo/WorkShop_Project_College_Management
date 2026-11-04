@@ -285,4 +285,41 @@ export class ApiClient {
   static async markAllNotificationsRead() {
     return this.request('/notifications/read-all', { method: 'POST' });
   }
+
+  // Operational / SLA Worker
+  static async getSchedulerStatus() {
+    return this.request('/operational/scheduler-status');
+  }
+
+  static async triggerEscalationCheck() {
+    return this.request('/operational/escalation-check', { method: 'POST' });
+  }
+
+  // Issue Creation & AI Similarity
+  static async createTicket(ticketData: any) {
+    return this.request('/tickets', {
+      method: 'POST',
+      body: JSON.stringify(ticketData),
+    });
+  }
+
+  static async endorseTicket(ticketId: string) {
+    return this.request(`/tickets/${ticketId}/endorse`, {
+      method: 'POST',
+    });
+  }
+
+  static async checkSimilarity(text: string, campusId: string, title?: string, location?: string) {
+    return this.request('/ai/similarity', {
+      method: 'POST',
+      body: JSON.stringify({ campusId, text, title, location }),
+    });
+  }
+
+  static async parseIssueWithAI(text: string, campusId: string) {
+    return this.request('/ai/parse', {
+      method: 'POST',
+      body: JSON.stringify({ campusId, text }),
+    });
+  }
 }

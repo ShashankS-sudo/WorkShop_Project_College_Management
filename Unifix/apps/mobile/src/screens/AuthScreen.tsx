@@ -9,6 +9,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { styles } from '../styles/theme';
 import { Campus } from '../types';
@@ -32,31 +33,49 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [otpCode, setOtpCode] = useState<string>('123456');
   const [isAnonymousMode, setIsAnonymousMode] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [devHint, setDevHint] = useState<string | null>(null);
+
+  const notifyUser = (title: string, message: string) => {
+    setErrorMessage(message);
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      // Do not block UI with native alert on web, error message banner is visible
+      console.warn(`[Auth] ${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
 
   const handleRequestOtp = async () => {
+    setErrorMessage(null);
     if (!selectedCampus) {
-      Alert.alert('Error', 'Please select a campus.');
+      notifyUser('Error', 'Please select a campus.');
       return;
     }
     if (!identifier.trim()) {
-      Alert.alert('Error', 'Please enter your email or phone number.');
+      notifyUser('Error', 'Please enter your email or phone number.');
       return;
     }
 
     setAuthLoading(true);
     try {
-      await MobileApiClient.requestOTP(identifier.trim(), selectedCampus.id, isAnonymousMode);
+      const res: any = await MobileApiClient.requestOTP(identifier.trim(), selectedCampus.id, isAnonymousMode);
+      if (res?.data?.developmentOtpCode) {
+        setOtpCode(res.data.developmentOtpCode);
+        setDevHint(`Simulated verification code for ${identifier}: ${res.data.developmentOtpCode}`);
+      }
       setAuthStep('otp');
     } catch (err: any) {
-      Alert.alert('Authentication Failed', err.message || 'Could not verify campus identity.');
+      notifyUser('Authentication Failed', err.message || 'Could not verify campus identity.');
     } finally {
       setAuthLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
+    setErrorMessage(null);
     if (!selectedCampus || !otpCode.trim()) {
-      Alert.alert('Error', 'Please enter the verification code.');
+      notifyUser('Error', 'Please enter the verification code.');
       return;
     }
 
@@ -72,7 +91,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         onAuthSuccess(res.data.user);
       }
     } catch (err: any) {
-      Alert.alert('Verification Failed', err.message || 'Invalid or expired verification code.');
+      notifyUser('Verification Failed', err.message || 'Invalid or expired verification code.');
     } finally {
       setAuthLoading(false);
     }
@@ -89,6 +108,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         <Text style={styles.appSubtitle}>Facility issues, safety reports, and rapid stage resolution</Text>
 
         <View style={styles.authCard}>
+          {errorMessage && (
+            <View style={{ backgroundColor: '#fee2e2', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+              <Text style={{ color: '#b91c1c', fontSize: 13, fontWeight: '600' }}>⚠️ {errorMessage}</Text>
+            </View>
+          )}
+
           {authStep === 'campus' ? (
             <View>
               <Text style={styles.fieldLabel}>Select Campus</Text>
@@ -96,7 +121,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 {campuses.map((c) => (
                   <TouchableOpacity
                     key={c.id}
-                    onPress={() => onSelectCampus(c)}
+                    onPress={() => {
+                      onSelectCampus(c);
+                      setErrorMessage(null);
+                    }}
                     style={[
                       styles.campusOption,
                       selectedCampus?.id === c.id && styles.campusOptionSelected,
@@ -118,7 +146,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <TextInput
                 style={styles.input}
                 value={identifier}
-                onChangeText={setIdentifier}
+                onChangeText={(text) => {
+                  setIdentifier(text);
+                  setErrorMessage(null);
+                }}
                 placeholder="e.g. student.alex@pstc.test"
                 autoCapitalize="none"
               />
@@ -147,7 +178,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <View>
               <View style={styles.infoBanner}>
                 <Text style={styles.infoBannerText}>
-                  Simulated verification code for {identifier}: 123456
+                  {devHint || `Simulated verification code for ${identifier}: 123456`}
                 </Text>
               </View>
 
@@ -155,7 +186,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <TextInput
                 style={[styles.input, styles.otpInput]}
                 value={otpCode}
-                onChangeText={setOtpCode}
+                onChangeText={(text) => {
+                  setOtpCode(text);
+                  setErrorMessage(null);
+                }}
                 maxLength={6}
                 keyboardType="number-pad"
                 placeholder="123456"
@@ -174,7 +208,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setAuthStep('campus')}
+                onPress={() => {
+                  setAuthStep('campus');
+                  setErrorMessage(null);
+                }}
                 style={{ marginTop: 12, alignItems: 'center' }}
               >
                 <Text style={styles.linkText}>Back to campus selection</Text>

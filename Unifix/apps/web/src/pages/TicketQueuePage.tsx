@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { ApiClient } from '../api/client';
 import { SocketEvent } from '@unifix/shared-types';
+import { CreateTicketModal } from '../components/CreateTicketModal';
 import {
   Search,
   RefreshCw,
@@ -11,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ThumbsUp,
+  Plus,
 } from 'lucide-react';
 
 interface TicketItem {
@@ -54,6 +56,7 @@ export const TicketQueuePage: React.FC<TicketQueuePageProps> = ({
   const [isCriticalOnly, setIsCriticalOnly] = useState<boolean>(initialFilter === 'critical');
   const [search, setSearch] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (initialFilter === 'overdue') {
@@ -171,17 +174,27 @@ export const TicketQueuePage: React.FC<TicketQueuePageProps> = ({
           </p>
         </div>
 
-        {/* Search bar */}
-        <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-80">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search titles, descriptions, locations..."
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-        </form>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {/* Search bar */}
+          <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-80">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search titles, descriptions, locations..."
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+          </form>
+
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="btn-primary py-2 px-3.5 text-xs flex items-center gap-1.5 whitespace-nowrap shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Report Issue
+          </button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
@@ -380,6 +393,14 @@ export const TicketQueuePage: React.FC<TicketQueuePageProps> = ({
           </div>
         )}
       </div>
+
+      {/* Create Ticket Modal */}
+      <CreateTicketModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onTicketCreated={fetchTickets}
+        onSelectTicket={onSelectTicket}
+      />
     </div>
   );
 };

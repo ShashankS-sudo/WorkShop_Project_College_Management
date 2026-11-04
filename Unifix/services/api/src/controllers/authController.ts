@@ -21,6 +21,33 @@ interface PendingOTP {
 
 const pendingOTPs = new Map<string, PendingOTP>();
 
+async function resolveCampus(campusIdOrCode: string) {
+  if (!campusIdOrCode) return null;
+  // Try direct ID lookup first
+  let campus = await prisma.campus.findUnique({
+    where: { id: campusIdOrCode },
+  });
+  if (!campus) {
+    const codeMatch = campusIdOrCode.toUpperCase().includes('PSTC')
+      ? 'PSTC'
+      : campusIdOrCode.toUpperCase().includes('MADI')
+      ? 'MADI'
+      : campusIdOrCode.toUpperCase().includes('HVU')
+      ? 'HVU'
+      : campusIdOrCode.toUpperCase();
+    campus = await prisma.campus.findFirst({
+      where: {
+        OR: [
+          { code: codeMatch },
+          { code: campusIdOrCode.toUpperCase() },
+        ],
+        isActive: true,
+      },
+    });
+  }
+  return campus;
+}
+
 function hashToken(token: string): string {
   const config = getConfig();
   return crypto
@@ -43,14 +70,14 @@ export async function requestOTP(req: Request, res: Response) {
 
     const cleanIdentifier = String(identifier).trim().toLowerCase();
 
-    // Check campus exists & active
-    const campus = await prisma.campus.findUnique({
-      where: { id: campusId },
-    });
+    // Check campus exists & active (supporting canonical UUID or code/slug)
+    const campus = await resolveCampus(campusId);
 
     if (!campus || !campus.isActive) {
       return res.status(404).json({ error: 'Campus not found or inactive' });
     }
+
+    const resolvedCampusId = campus.id;
 
     let role: 'REPORTER' | 'MANAGEMENT' | 'SUPERMANAGEMENT' = 'REPORTER';
     let displayName: string = isAnonymous ? 'Anonymous Reporter' : 'Campus User';
@@ -59,7 +86,7 @@ export async function requestOTP(req: Request, res: Response) {
     if (!isAnonymous) {
       const authorizedIdentity = await prisma.campusAuthorizedIdentity.findFirst({
         where: {
-          campusId,
+          campusId: resolvedCampusId,
           isActive: true,
           OR: [
             { email: { equals: cleanIdentifier, mode: 'insensitive' } },
@@ -85,17 +112,21 @@ export async function requestOTP(req: Request, res: Response) {
       ? Math.floor(100000 + Math.random() * 900000).toString()
       : '123456';
 
-    const otpKey = `${campusId}:${cleanIdentifier}`;
-    pendingOTPs.set(otpKey, {
+    const otpData = {
       code: otpCode,
-      campusId,
+      campusId: resolvedCampusId,
       identifier: cleanIdentifier,
       isAnonymous: Boolean(isAnonymous),
       expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
       attempts: 0,
       role,
       displayName,
-    });
+    };
+
+    pendingOTPs.set(`${resolvedCampusId}:${cleanIdentifier}`, otpData);
+    if (campusId !== resolvedCampusId) {
+      pendingOTPs.set(`${campusId}:${cleanIdentifier}`, otpData);
+    }
 
     logger.info(`Simulated OTP generated for ${cleanIdentifier} on campus ${campus.code}: ${otpCode}`);
 
@@ -103,7 +134,7 @@ export async function requestOTP(req: Request, res: Response) {
       data: {
         message: 'Verification code generated (development simulated delivery)',
         identifier: cleanIdentifier,
-        campusId,
+        campusId: resolvedCampusId,
         expiresInSeconds: 300,
         // In development mode, return code to facilitate testing without SMS/Email gateway
         developmentOtpCode: config.nodeEnv !== 'production' ? otpCode : undefined,
@@ -127,8 +158,17 @@ export async function verifyOTP(req: Request, res: Response) {
     }
 
     const cleanIdentifier = String(identifier).trim().toLowerCase();
-    const otpKey = `${campusId}:${cleanIdentifier}`;
-    const pending = pendingOTPs.get(otpKey);
+
+    // Check campus exists & active (supporting canonical UUID or code/slug)
+    const campus = await resolveCampus(campusId);
+    if (!campus || !campus.isActive) {
+      return res.status(404).json({ error: 'Campus not found or inactive' });
+    }
+    const resolvedCampusId = campus.id;
+
+    const otpKey = `${resolvedCampusId}:${cleanIdentifier}`;
+    const fallbackOtpKey = `${campusId}:${cleanIdentifier}`;
+    const pending = pendingOTPs.get(otpKey) || pendingOTPs.get(fallbackOtpKey);
 
     // Verify OTP - only allow master dev code when explicitly outside production
     const config = getConfig();
@@ -140,11 +180,13 @@ export async function verifyOTP(req: Request, res: Response) {
     if (pending) {
       if (pending.expiresAt < Date.now()) {
         pendingOTPs.delete(otpKey);
+        pendingOTPs.delete(fallbackOtpKey);
         return res.status(401).json({ error: 'OTP has expired. Please request a new code.' });
       }
 
       if (pending.attempts >= 5) {
         pendingOTPs.delete(otpKey);
+        pendingOTPs.delete(fallbackOtpKey);
         return res.status(429).json({ error: 'Too many failed attempts. Please request a new code.' });
       }
 
@@ -155,6 +197,7 @@ export async function verifyOTP(req: Request, res: Response) {
 
       // Consumed OTP
       pendingOTPs.delete(otpKey);
+      pendingOTPs.delete(fallbackOtpKey);
     }
 
     const isEmail = cleanIdentifier.includes('@');
@@ -187,12 +230,12 @@ export async function verifyOTP(req: Request, res: Response) {
       });
     }
 
-    // Upsert CampusMembership
+    // Upsert CampusMembership with canonical resolved campus ID
     const membership = await prisma.campusMembership.upsert({
       where: {
         userId_campusId: {
           userId: user.id,
-          campusId,
+          campusId: resolvedCampusId,
         },
       },
       update: {
@@ -200,7 +243,7 @@ export async function verifyOTP(req: Request, res: Response) {
       },
       create: {
         userId: user.id,
-        campusId,
+        campusId: resolvedCampusId,
         role: userRole,
         isActive: true,
       },

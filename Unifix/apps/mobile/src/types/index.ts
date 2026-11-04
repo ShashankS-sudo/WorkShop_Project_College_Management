@@ -24,6 +24,7 @@ export interface Ticket {
   severity: string;
   isCritical: boolean;
   isAnonymous: boolean;
+  escalationCount?: number;
   stageStartTime?: string;
   createdAt: string;
   updatedAt?: string;

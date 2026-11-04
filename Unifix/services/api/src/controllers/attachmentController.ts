@@ -16,9 +16,14 @@ const ALLOWED_MIME_TYPES = [
   'image/heic',
   'image/heif',
   'application/pdf',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'video/mpeg',
+  'video/3gpp',
 ];
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB limit
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB limit
 
 export const uploadMiddleware = multer({
   storage: multer.memoryStorage(),
@@ -30,7 +35,7 @@ export const uploadMiddleware = multer({
     if (ALLOWED_MIME_TYPES.includes(file.mimetype.toLowerCase())) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed types: JPEG, PNG, WEBP, GIF, HEIC, PDF`));
+      cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed types: Images (JPEG, PNG, WEBP, GIF, HEIC), Videos (MP4, WEBM, MOV), and PDF`));
     }
   },
 }).single('file');

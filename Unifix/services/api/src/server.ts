@@ -1,13 +1,12 @@
 import http from 'http';
 import { app } from './app';
 import { getConfig } from '@unifix/shared-config';
-import { PrismaClient } from '@prisma/client';
-import { startEscalationScheduler, stopEscalationScheduler } from './lib/escalationEngine';
+import prisma from './lib/prisma';
+import { escalationScheduler } from './lib/scheduler';
 import { initSocketServer, getIO } from './lib/socket';
 
 const config = getConfig();
 const port = config.port || 3000;
-const prisma = new PrismaClient();
 
 // Connect to database and start server
 prisma
@@ -15,8 +14,8 @@ prisma
   .then(() => {
     console.log('✅ PostgreSQL database connected successfully');
 
-    // Start background escalation scheduler
-    startEscalationScheduler(15 * 60 * 1000); // Check every 15 minutes
+    // Start background automated SLA escalation worker
+    escalationScheduler.start();
 
     // Create HTTP server wrapping Express application
     const httpServer = http.createServer(app);
@@ -32,7 +31,7 @@ prisma
     // Graceful shutdown handling
     const shutdown = async (signal: string) => {
       console.log(`\n🛑 Received ${signal}. Shutting down gracefully...`);
-      stopEscalationScheduler();
+      escalationScheduler.stop();
 
       const io = getIO();
       if (io) {

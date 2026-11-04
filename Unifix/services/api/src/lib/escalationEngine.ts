@@ -1,8 +1,9 @@
 // 3-Week Stage Escalation Engine - Unifix
 import prisma from './prisma';
 import logger from './logger';
-import { emitToCampus, emitToUser } from './socket';
+import { emitToCampus, emitToTicket, emitToUser } from './socket';
 import { SocketEvent } from '@unifix/shared-types';
+import { escalationScheduler } from './scheduler';
 
 export interface EscalationResult {
   ticketsChecked: number;
@@ -164,8 +165,8 @@ export async function runEscalationCheck(): Promise<EscalationResult> {
           }
         }
 
-        // Emit real-time ticket escalation event to campus
-        emitToCampus(ticket.campusId, SocketEvent.TICKET_ESCALATED, {
+        // Emit real-time ticket escalation event to campus and focused ticket room
+        const escalationPayload = {
           campusId: ticket.campusId,
           ticketId: ticket.id,
           ticket: {
@@ -177,6 +178,13 @@ export async function runEscalationCheck(): Promise<EscalationResult> {
           },
           action: 'ESCALATED',
           timestamp: new Date().toISOString(),
+        };
+
+        emitToCampus(ticket.campusId, SocketEvent.TICKET_ESCALATED, escalationPayload);
+        emitToTicket(ticket.id, SocketEvent.TICKET_ESCALATED, escalationPayload);
+        emitToTicket(ticket.id, SocketEvent.TICKET_UPDATED, {
+          ticketId: ticket.id,
+          action: 'ESCALATED',
         });
       });
 
@@ -196,33 +204,13 @@ export async function runEscalationCheck(): Promise<EscalationResult> {
   };
 }
 
-let schedulerTimer: NodeJS.Timeout | null = null;
-
 /**
- * Start the recurring background escalation runner
+ * Start the recurring background escalation runner (delegated to escalationScheduler)
  */
-export function startEscalationScheduler(intervalMs = 30 * 60 * 1000): void {
-  if (schedulerTimer) {
-    clearInterval(schedulerTimer);
-  }
-
-  logger.info(`Starting background ticket escalation scheduler (interval: ${intervalMs / 1000}s)`);
-
-  // Run initial check after short warmup delay
-  setTimeout(() => {
-    runEscalationCheck().catch((err) => logger.error('Initial escalation check error', { error: err.message }));
-  }, 10000);
-
-  // Set recurring interval
-  schedulerTimer = setInterval(() => {
-    runEscalationCheck().catch((err) => logger.error('Recurring escalation check error', { error: err.message }));
-  }, intervalMs);
+export function startEscalationScheduler(intervalMs?: number): void {
+  escalationScheduler.start(intervalMs);
 }
 
 export function stopEscalationScheduler(): void {
-  if (schedulerTimer) {
-    clearInterval(schedulerTimer);
-    schedulerTimer = null;
-    logger.info('Stopped escalation scheduler');
-  }
+  escalationScheduler.stop();
 }
