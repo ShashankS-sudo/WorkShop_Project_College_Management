@@ -6,7 +6,9 @@ import crypto from 'crypto';
 import logger from './logger';
 
 const BUCKET_NAME = process.env.SUPABASE_STORAGE_BUCKET || 'ticket-attachments';
-const LOCAL_UPLOADS_DIR = path.resolve(process.cwd(), 'uploads', 'attachments');
+const LOCAL_UPLOADS_DIR = fs.existsSync(path.resolve(process.cwd(), 'uploads'))
+  ? path.resolve(process.cwd(), 'uploads', 'attachments')
+  : path.resolve(__dirname, '../../../uploads/attachments');
 
 // Ensure local uploads directory exists for fallback
 if (!fs.existsSync(LOCAL_UPLOADS_DIR)) {

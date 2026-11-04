@@ -62,6 +62,38 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
     }
   };
 
+  const handleCaptureCameraPhoto = () => {
+    setUploadError(null);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      // Triggers physical mobile camera immediately
+      input.setAttribute('capture', 'environment');
+      input.onchange = async (e: any) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+
+        setIsUploadingMedia(true);
+        try {
+          const formData = new FormData();
+          formData.append('file', file, `camera_capture_${Date.now()}.jpg`);
+          const res: any = await MobileApiClient.uploadAttachment(formData);
+          if (res?.data) {
+            setAttachments((prev) => [...prev, res.data]);
+          }
+        } catch (err: any) {
+          setUploadError(err.message || 'Failed to capture photo from camera.');
+        } finally {
+          setIsUploadingMedia(false);
+        }
+      };
+      input.click();
+    } else {
+      notifyUser('Notice', 'Direct camera capture is available in mobile browser preview.');
+    }
+  };
+
   const handlePickAndUploadMedia = () => {
     setUploadError(null);
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -252,62 +284,90 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
     }
   };
 
-  const renderMediaUploader = () => (
-    <View style={{ marginTop: 12, marginBottom: 12 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>Photo / Video Evidence (Optional)</Text>
-        <Text style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>Optional • Ctrl+V to paste</Text>
-      </View>
-      <TouchableOpacity
-        onPress={handlePickAndUploadMedia}
-        disabled={isUploadingMedia}
-        style={{
-          borderWidth: 1.5,
-          borderStyle: 'dashed',
-          borderColor: '#93c5fd',
-          backgroundColor: '#eff6ff',
-          borderRadius: 10,
-          paddingVertical: 14,
-          paddingHorizontal: 16,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {isUploadingMedia ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+  const renderMediaUploader = () => {
+    const host = MobileApiClient.getHost();
+
+    return (
+      <View style={{ marginTop: 12, marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>Photo / Video Evidence (Optional)</Text>
+          <Text style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>Optional • Ctrl+V to paste</Text>
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+          {/* Direct Mobile Camera Button */}
+          <TouchableOpacity
+            onPress={handleCaptureCameraPhoto}
+            disabled={isUploadingMedia}
+            style={{
+              flex: 1,
+              backgroundColor: '#2563eb',
+              borderRadius: 10,
+              paddingVertical: 12,
+              paddingHorizontal: 8,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '700' }}>
+              📸 Take Photo
+            </Text>
+            <Text style={{ color: '#bfdbfe', fontSize: 10, marginTop: 2 }}>
+              Direct camera snap
+            </Text>
+          </TouchableOpacity>
+
+          {/* Files / Gallery Button */}
+          <TouchableOpacity
+            onPress={handlePickAndUploadMedia}
+            disabled={isUploadingMedia}
+            style={{
+              flex: 1,
+              borderWidth: 1.5,
+              borderStyle: 'dashed',
+              borderColor: '#93c5fd',
+              backgroundColor: '#eff6ff',
+              borderRadius: 10,
+              paddingVertical: 12,
+              paddingHorizontal: 8,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Text style={{ color: '#2563eb', fontSize: 13, fontWeight: '700' }}>
+              📁 Choose File
+            </Text>
+            <Text style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>
+              Gallery, Video, PDF
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {isUploadingMedia && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 10, padding: 8, backgroundColor: '#eff6ff', borderRadius: 8 }}>
             <ActivityIndicator size="small" color={colors.primary} />
-            <Text style={{ marginLeft: 8, color: '#1e40af', fontSize: 13, fontWeight: '600' }}>
-              Uploading media attachment...
-            </Text>
-          </View>
-        ) : (
-          <View style={{ alignItems: 'center' }}>
-            <Text style={{ color: '#2563eb', fontSize: 14, fontWeight: '700' }}>
-              📷 🎥 + Add or Paste (Ctrl+V) Image / Video
-            </Text>
-            <Text style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>
-              Supports Images (JPG, PNG, WEBP), Videos (MP4, MOV), & Documents (PDF) up to 50MB
+            <Text style={{ marginLeft: 8, color: '#1e40af', fontSize: 12, fontWeight: '600' }}>
+              Uploading evidence to server...
             </Text>
           </View>
         )}
-      </TouchableOpacity>
 
-      {uploadError && (
-        <View style={{ backgroundColor: '#fee2e2', borderRadius: 6, padding: 8, marginTop: 6 }}>
-          <Text style={{ color: '#b91c1c', fontSize: 12 }}>⚠️ {uploadError}</Text>
-        </View>
-      )}
+        {uploadError && (
+          <View style={{ backgroundColor: '#fee2e2', borderRadius: 6, padding: 8, marginTop: 8 }}>
+            <Text style={{ color: '#b91c1c', fontSize: 12 }}>⚠️ {uploadError}</Text>
+          </View>
+        )}
 
-      {attachments.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
-          {attachments.map((att, idx) => {
-            const isImg = att.mimeType?.startsWith('image/');
-            const isVideo = att.mimeType?.startsWith('video/');
-            const imgUri = att.url?.startsWith('http')
-              ? att.url
-              : `http://localhost:3000${att.url}`;
+        {attachments.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+            {attachments.map((att, idx) => {
+              const isImg = att.mimeType?.startsWith('image/');
+              const isVideo = att.mimeType?.startsWith('video/');
+              const imgUri = att.url?.startsWith('http')
+                ? att.url
+                : `${host}${att.url?.startsWith('/') ? '' : '/'}${att.url || ''}`;
 
-            return (
+              return (
               <View key={idx} style={{ marginRight: 10, alignItems: 'center', width: 84 }}>
                 <View
                   style={{
@@ -366,6 +426,7 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
       )}
     </View>
   );
+};
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>

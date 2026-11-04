@@ -3,8 +3,19 @@ import { Platform } from 'react-native';
 import { TokenStorage } from './tokenStorage';
 import { User } from '../types';
 
-// In Android emulator, 10.0.2.2 maps to host machine's localhost; otherwise localhost
-const DEFAULT_HOST = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+// In Android emulator, 10.0.2.2 maps to host machine's localhost; otherwise current host/localhost
+export const getApiHost = (): string => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
+    const port = window.location.port === '3000' ? '3000' : '3000';
+    return `http://${window.location.hostname}:${port}`;
+  }
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000';
+  }
+  return 'http://localhost:3000';
+};
+
+const DEFAULT_HOST = getApiHost();
 let API_BASE_URL = `${DEFAULT_HOST}/api/v1`;
 
 let authToken: string | null = null;
@@ -13,6 +24,10 @@ let isInitialized = false;
 let refreshPromise: Promise<string | null> | null = null;
 
 export const MobileApiClient = {
+  getHost(): string {
+    return getApiHost();
+  },
+
   setBaseUrl(url: string) {
     API_BASE_URL = url.replace(/\/+$/, '');
   },

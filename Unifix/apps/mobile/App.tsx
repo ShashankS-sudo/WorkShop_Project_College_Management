@@ -21,12 +21,12 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [campuses, setCampuses] = useState<Campus[]>([
-    { id: 'campus-pstc-01', name: 'Pacific Science & Tech Campus', code: 'PSTC' },
-    { id: 'campus-madi-02', name: 'Metropolitan Arts & Design Institute', code: 'MADI' },
-    { id: 'campus-hvu-03', name: 'Highland Valley University', code: 'HVU' },
+    { id: '46f73b9d-2623-4685-86c3-f5bccdb3118d', name: 'Pacific Science & Tech Campus', code: 'PSTC' },
+    { id: '0dd00879-eca5-4a3e-a24c-917a22bc5e0f', name: 'Metropolitan Arts & Design Institute', code: 'MADI' },
+    { id: '29154e1f-6203-4b20-9747-6dd089f2413b', name: 'Highland Valley University', code: 'HVU' },
   ]);
   const [selectedCampus, setSelectedCampus] = useState<Campus | null>({
-    id: 'campus-pstc-01',
+    id: '46f73b9d-2623-4685-86c3-f5bccdb3118d',
     name: 'Pacific Science & Tech Campus',
     code: 'PSTC',
   });

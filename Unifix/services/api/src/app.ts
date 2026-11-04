@@ -3,6 +3,7 @@ import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { getConfig } from '@unifix/shared-config';
 import logger, { requestLogger, errorLogger } from './lib/logger';
 import router from './routes';
@@ -22,8 +23,21 @@ app.use(
   })
 );
 
+// Determine uploads directory reliably
+const uploadsDir = fs.existsSync(path.resolve(process.cwd(), 'uploads'))
+  ? path.resolve(process.cwd(), 'uploads')
+  : path.resolve(__dirname, '../../uploads');
+
 // Serve uploaded files statically with cross-origin access
-app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    next();
+  },
+  express.static(uploadsDir)
+);
 
 // Request logging
 app.use(requestLogger);

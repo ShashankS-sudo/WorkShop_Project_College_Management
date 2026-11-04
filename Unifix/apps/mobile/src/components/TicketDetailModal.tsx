@@ -54,6 +54,46 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
     setUploadError(null);
   }, [ticket?.id, ticket?.attachments]);
 
+  const handleCaptureCamera = () => {
+    if (!ticket) return;
+    setUploadError(null);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.setAttribute('capture', 'environment');
+      input.onchange = async (e: any) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+
+        setIsUploadingMedia(true);
+        try {
+          const formData = new FormData();
+          formData.append('file', file, `camera_capture_${Date.now()}.jpg`);
+          const uploadRes: any = await MobileApiClient.uploadAttachment(formData);
+          if (uploadRes?.data) {
+            const { filename, filepath, mimeType, size } = uploadRes.data;
+            const attachRes: any = await MobileApiClient.addTicketAttachment(ticket.id, {
+              filename,
+              filepath,
+              mimeType,
+              size,
+            });
+            const newAtt = attachRes.attachment || attachRes.data || uploadRes.data;
+            setAttachments((prev) => [...prev, newAtt]);
+          }
+        } catch (err: any) {
+          setUploadError(err.message || 'Failed to capture photo from camera.');
+        } finally {
+          setIsUploadingMedia(false);
+        }
+      };
+      input.click();
+    } else {
+      Alert.alert('Notice', 'Direct camera capture is available in mobile browser preview.');
+    }
+  };
+
   const handleAddMedia = () => {
     if (!ticket) return;
     setUploadError(null);
@@ -212,26 +252,44 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                     Photo & Video Evidence ({attachments.length})
                   </Text>
                   {ticket.status !== 'CLOSED' && (
-                    <TouchableOpacity
-                      onPress={handleAddMedia}
-                      disabled={isUploadingMedia}
-                      style={{
-                        backgroundColor: '#eff6ff',
-                        paddingHorizontal: 10,
-                        paddingVertical: 5,
-                        borderRadius: 6,
-                        borderWidth: 1,
-                        borderColor: '#bfdbfe',
-                      }}
-                    >
-                      {isUploadingMedia ? (
-                        <ActivityIndicator size="small" color={colors.primary} />
-                      ) : (
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#2563eb' }}>
-                          + Add Photo / Video
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <TouchableOpacity
+                        onPress={handleCaptureCamera}
+                        disabled={isUploadingMedia}
+                        style={{
+                          backgroundColor: '#2563eb',
+                          paddingHorizontal: 8,
+                          paddingVertical: 5,
+                          borderRadius: 6,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#ffffff' }}>
+                          📸 Camera
                         </Text>
-                      )}
-                    </TouchableOpacity>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleAddMedia}
+                        disabled={isUploadingMedia}
+                        style={{
+                          backgroundColor: '#eff6ff',
+                          paddingHorizontal: 8,
+                          paddingVertical: 5,
+                          borderRadius: 6,
+                          borderWidth: 1,
+                          borderColor: '#bfdbfe',
+                        }}
+                      >
+                        {isUploadingMedia ? (
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        ) : (
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: '#2563eb' }}>
+                            📁 Upload
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   )}
                 </View>
 
@@ -244,13 +302,17 @@ export const TicketDetailModal: React.FC<TicketDetailModalProps> = ({
                 {attachments.length > 0 ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     {attachments.map((att: any) => {
+                      const host = MobileApiClient.getHost();
                       const isImg = att.mimeType?.startsWith('image/');
                       const isVideo = att.mimeType?.startsWith('video/');
+                      const cleanPath = (att.filepath || att.url || '').replace(/^\/+/, '');
                       const imgUri = att.filepath?.startsWith('http')
                         ? att.filepath
                         : att.url?.startsWith('http')
                         ? att.url
-                        : `http://localhost:3000/uploads/attachments/${att.filepath}`;
+                        : cleanPath.startsWith('uploads/attachments/')
+                        ? `${host}/${cleanPath}`
+                        : `${host}/uploads/attachments/${cleanPath}`;
                       return (
                         <View key={att.id || att.filepath} style={{ marginRight: 10, alignItems: 'center', width: 84 }}>
                           {isImg ? (

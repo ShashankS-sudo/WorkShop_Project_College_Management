@@ -186,6 +186,30 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
     }
   };
 
+  const getAttachmentUrl = (filepath: string) => {
+    if (!filepath) return '';
+    if (filepath.startsWith('http://') || filepath.startsWith('https://')) {
+      return filepath;
+    }
+    const clean = filepath.replace(/^\/+/, '');
+    if (clean.startsWith('uploads/attachments/')) {
+      return `/${clean}`;
+    }
+    if (clean.startsWith('attachments/')) {
+      return `/uploads/${clean}`;
+    }
+    return `/uploads/attachments/${clean}`;
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, originalUrl: string) => {
+    const img = e.currentTarget;
+    if (!img.dataset.retried) {
+      img.dataset.retried = 'true';
+      const clean = originalUrl.replace(/^\/+/, '');
+      img.src = `http://localhost:3000/${clean}`;
+    }
+  };
+
   const handleExecuteAction = async () => {
     setActionError(null);
     try {
@@ -535,9 +559,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
                       {ticket.attachments.map((att: any) => {
                         const isImage = att.mimeType?.startsWith('image/');
                         const isVideo = att.mimeType?.startsWith('video/');
-                        const fileUrl = att.filepath?.startsWith('http')
-                          ? att.filepath
-                          : `/uploads/attachments/${att.filepath}`;
+                        const fileUrl = getAttachmentUrl(att.filepath);
 
                         return (
                           <div
@@ -552,6 +574,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
                                     src={fileUrl}
                                     alt={att.filename}
                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                    onError={(e) => handleImageError(e, fileUrl)}
                                   />
                                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                                     <ZoomIn className="w-5 h-5 drop-shadow" />
@@ -795,9 +818,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {ticket.attachments.map((att: any) => {
                       const isImage = att.mimeType?.startsWith('image/');
-                      const fileUrl = att.filepath?.startsWith('http')
-                        ? att.filepath
-                        : `/uploads/attachments/${att.filepath}`;
+                      const fileUrl = getAttachmentUrl(att.filepath);
 
                       return (
                         <div
@@ -808,10 +829,9 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
                             <img
                               src={fileUrl}
                               alt={att.filename}
-                              className="w-14 h-14 object-cover rounded-lg bg-gray-100 border flex-shrink-0"
-                              onError={(e: any) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
+                              className="w-14 h-14 object-cover rounded-lg bg-gray-100 border flex-shrink-0 cursor-pointer hover:opacity-90"
+                              onClick={() => setSelectedImagePreview({ url: fileUrl, filename: att.filename, mimeType: att.mimeType })}
+                              onError={(e) => handleImageError(e, fileUrl)}
                             />
                           ) : (
                             <div className="w-14 h-14 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 font-bold text-xs">
@@ -892,6 +912,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
                   src={selectedImagePreview.url}
                   alt={selectedImagePreview.filename}
                   className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-sm"
+                  onError={(e) => handleImageError(e, selectedImagePreview.url)}
                 />
               )}
             </div>
