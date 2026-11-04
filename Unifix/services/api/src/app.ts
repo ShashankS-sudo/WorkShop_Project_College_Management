@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -27,11 +28,33 @@ app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 // Request logging
 app.use(requestLogger);
 
-// CORS configuration
-const allowedOrigins = config.webOrigin ? [config.webOrigin] : ['*'];
+// CORS configuration - Support Web Management Portal (5173), Mobile Expo Web (8081/19006), and localhost dev
+const configuredOrigins = config.webOrigin ? [config.webOrigin] : [];
+const devAllowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:8081',
+  'http://localhost:19006',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:8081',
+  ...configuredOrigins,
+];
+
 app.use(
   cors({
-    origin: allowedOrigins.includes('*') ? true : allowedOrigins,
+    origin: (origin, callback) => {
+      // Allow non-browser requests (mobile native, curl, postman, server-to-server)
+      if (!origin) return callback(null, true);
+
+      if (
+        config.nodeEnv !== 'production' ||
+        devAllowedOrigins.includes(origin) ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:')
+      ) {
+        return callback(null, true);
+      }
+      callback(new Error(`Origin ${origin} not allowed by CORS policy`));
+    },
     credentials: true,
   })
 );

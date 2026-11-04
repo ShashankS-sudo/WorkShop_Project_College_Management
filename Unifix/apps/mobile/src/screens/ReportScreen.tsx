@@ -96,6 +96,42 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
     setAttachments((prev) => prev.filter((a) => a.filepath !== filepath));
   };
 
+  // Support pasting images from clipboard (Ctrl+V) on web
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const handlePaste = async (e: any) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            setIsUploadingMedia(true);
+            setUploadError(null);
+            try {
+              const formData = new FormData();
+              formData.append('file', file, `pasted_image_${Date.now()}.png`);
+              const res: any = await MobileApiClient.uploadAttachment(formData);
+              if (res?.data) {
+                setAttachments((prev) => [...prev, res.data]);
+              }
+            } catch (err: any) {
+              setUploadError(err.message || 'Failed to upload pasted image');
+            } finally {
+              setIsUploadingMedia(false);
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, []);
+
   // Debounced real-time similarity check on manual inputs
   useEffect(() => {
     if (reportingMode !== 'manual' || !campus || similarityIgnored) return;
@@ -218,7 +254,10 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
 
   const renderMediaUploader = () => (
     <View style={{ marginTop: 12, marginBottom: 12 }}>
-      <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>Photo / Video Evidence (Optional)</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <Text style={[styles.fieldLabel, { marginBottom: 0 }]}>Photo / Video Evidence (Optional)</Text>
+        <Text style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>Optional • Ctrl+V to paste</Text>
+      </View>
       <TouchableOpacity
         onPress={handlePickAndUploadMedia}
         disabled={isUploadingMedia}
@@ -244,7 +283,7 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
         ) : (
           <View style={{ alignItems: 'center' }}>
             <Text style={{ color: '#2563eb', fontSize: 14, fontWeight: '700' }}>
-              📷 🎥 + Add Photo or Video
+              📷 🎥 + Add or Paste (Ctrl+V) Image / Video
             </Text>
             <Text style={{ color: '#64748b', fontSize: 11, marginTop: 3 }}>
               Supports Images (JPG, PNG, WEBP), Videos (MP4, MOV), & Documents (PDF) up to 50MB

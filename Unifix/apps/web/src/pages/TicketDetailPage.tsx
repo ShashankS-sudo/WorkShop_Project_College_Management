@@ -11,6 +11,11 @@ import {
   Paperclip,
   UploadCloud,
   Trash2,
+  ZoomIn,
+  ExternalLink,
+  Image as ImageIcon,
+  Video,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface TicketDetailPageProps {
@@ -33,6 +38,7 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [selectedImagePreview, setSelectedImagePreview] = useState<{ url: string; filename: string; mimeType: string } | null>(null);
 
   // Action Modals State
   const [actionType, setActionType] = useState<
@@ -501,6 +507,94 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
                 </div>
               </div>
 
+              {/* Photo & Video Evidence for Validity Testing */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                    Photo / Video Evidence (Validity Testing)
+                  </h4>
+                  <span className="text-[11px] text-gray-400 font-medium">
+                    {ticket.attachments?.length || 0} attachment(s)
+                  </span>
+                </div>
+
+                {ticket.attachments && ticket.attachments.length > 0 ? (
+                  <div className="p-4 border border-blue-100 rounded-xl bg-blue-50/20 space-y-3">
+                    <div className="flex items-center justify-between text-xs text-blue-900 pb-2 border-b border-blue-100">
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>Evidence attached by reporter for validation</span>
+                      </div>
+                      <span className="text-[11px] text-gray-500">
+                        Click any image to inspect full size
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {ticket.attachments.map((att: any) => {
+                        const isImage = att.mimeType?.startsWith('image/');
+                        const isVideo = att.mimeType?.startsWith('video/');
+                        const fileUrl = att.filepath?.startsWith('http')
+                          ? att.filepath
+                          : `/uploads/attachments/${att.filepath}`;
+
+                        return (
+                          <div
+                            key={att.id}
+                            onClick={() => setSelectedImagePreview({ url: fileUrl, filename: att.filename, mimeType: att.mimeType })}
+                            className="group relative cursor-pointer border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md hover:border-blue-400 transition-all flex flex-col"
+                          >
+                            <div className="h-28 w-full bg-gray-100 flex items-center justify-center overflow-hidden relative">
+                              {isImage ? (
+                                <>
+                                  <img
+                                    src={fileUrl}
+                                    alt={att.filename}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                    <ZoomIn className="w-5 h-5 drop-shadow" />
+                                  </div>
+                                </>
+                              ) : isVideo ? (
+                                <div className="flex flex-col items-center justify-center text-blue-600">
+                                  <Video className="w-8 h-8" />
+                                  <span className="text-[10px] font-bold mt-1">PLAY VIDEO</span>
+                                </div>
+                              ) : (
+                                <div className="text-gray-500 font-bold text-xs uppercase">
+                                  PDF DOCUMENT
+                                </div>
+                              )}
+                            </div>
+                            <div className="p-2 text-[11px]">
+                              <p className="font-semibold text-gray-800 truncate" title={att.filename}>
+                                {att.filename}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-0.5">
+                                {(att.size / 1024).toFixed(1)} KB • Click to inspect
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-500 text-xs flex items-center justify-between">
+                    <span>No image evidence attached to this ticket. (Evidence submission is optional)</span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('attachments')}
+                      className="text-blue-600 hover:underline font-semibold text-xs"
+                    >
+                      + Upload photo now
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Grid Metadata */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 border border-gray-100 rounded-xl bg-gray-50/50">
                 <div>
@@ -759,6 +853,61 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
           )}
         </div>
       </div>
+
+      {/* Full-Screen Evidence Inspection Lightbox Modal */}
+      {selectedImagePreview && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">{selectedImagePreview.filename}</h3>
+                  <p className="text-xs text-gray-500">Validity Inspection Viewer</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={selectedImagePreview.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary py-1 px-2.5 text-xs inline-flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open Full File
+                </a>
+                <button
+                  onClick={() => setSelectedImagePreview(null)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-gray-900/5">
+              {selectedImagePreview.mimeType?.startsWith('video/') ? (
+                <video src={selectedImagePreview.url} controls className="max-h-[60vh] max-w-full rounded-lg" autoPlay />
+              ) : (
+                <img
+                  src={selectedImagePreview.url}
+                  alt={selectedImagePreview.filename}
+                  className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-sm"
+                />
+              )}
+            </div>
+            <div className="p-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-xs text-gray-600">
+              <span className="font-medium">Ticket #{ticket.id.slice(0, 8)} Evidence Verification</span>
+              <button
+                type="button"
+                onClick={() => setSelectedImagePreview(null)}
+                className="btn-primary py-1 px-4 text-xs"
+              >
+                Close Inspection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

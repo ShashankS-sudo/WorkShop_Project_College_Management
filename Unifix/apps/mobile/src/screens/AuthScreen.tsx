@@ -154,6 +154,42 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                 autoCapitalize="none"
               />
 
+              {/* 5 Students & 1 Admin Quick-Select Chips */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {[
+                  { label: 'Student 1 (Alex)', email: 'student.alex@pstc.test' },
+                  { label: 'Student 2 (Emma)', email: 'student2@pstc.test' },
+                  { label: 'Student 3 (Liam)', email: 'student3@pstc.test' },
+                  { label: 'Student 4 (Sophia)', email: 'student4@pstc.test' },
+                  { label: 'Student 5 (Noah)', email: 'student5@pstc.test' },
+                  { label: 'Admin (PSTC)', email: 'admin@pstc.test' },
+                ].map((s) => (
+                  <TouchableOpacity
+                    key={s.email}
+                    onPress={() => {
+                      setIdentifier(s.email);
+                      setErrorMessage(null);
+                    }}
+                    style={{
+                      paddingHorizontal: 9,
+                      paddingVertical: 5,
+                      borderRadius: 12,
+                      backgroundColor: identifier === s.email ? '#0284c7' : '#f1f5f9',
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: '600',
+                        color: identifier === s.email ? '#ffffff' : '#475569',
+                      }}
+                    >
+                      {s.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <TouchableOpacity
                 onPress={() => setIsAnonymousMode(!isAnonymousMode)}
                 style={styles.anonToggle}

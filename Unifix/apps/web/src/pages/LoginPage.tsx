@@ -18,7 +18,7 @@ export const LoginPage: React.FC = () => {
   ]);
   const [selectedCampusId, setSelectedCampusId] = useState<string>('campus-pstc-01');
 
-  const [identifier, setIdentifier] = useState<string>('manager.sarah@pstc.test');
+  const [identifier, setIdentifier] = useState<string>('admin@pstc.test');
   const [step, setStep] = useState<'identifier' | 'otp'>('identifier');
   const [otpCode, setOtpCode] = useState<string>('123456');
   const [error, setError] = useState<string | null>(null);
@@ -211,19 +211,27 @@ export const LoginPage: React.FC = () => {
             <div className="space-y-1.5">
               <button
                 type="button"
-                onClick={() => fillQuickDemo('manager.sarah@pstc.test', 'PSTC')}
+                onClick={() => fillQuickDemo('admin@pstc.test', 'PSTC')}
                 className="w-full text-left px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs text-gray-700 flex justify-between items-center transition-colors"
               >
-                <span>Sarah Jenkins (Facilities Lead)</span>
-                <span className="text-[10px] text-blue-600 font-medium">PSTC Mgt</span>
+                <span>System Admin (admin@pstc.test)</span>
+                <span className="text-[10px] text-blue-600 font-semibold">1 Admin</span>
               </button>
               <button
                 type="button"
-                onClick={() => fillQuickDemo('director.kiran@unifix.global', 'PSTC')}
+                onClick={() => fillQuickDemo('student.alex@pstc.test', 'PSTC')}
                 className="w-full text-left px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs text-gray-700 flex justify-between items-center transition-colors"
               >
-                <span>Kiran Patel (Operations Director)</span>
-                <span className="text-[10px] text-purple-600 font-medium">Supermanagement</span>
+                <span>Alex Mercer (student.alex@pstc.test)</span>
+                <span className="text-[10px] text-emerald-600 font-medium">Student 1</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fillQuickDemo('student2@pstc.test', 'PSTC')}
+                className="w-full text-left px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs text-gray-700 flex justify-between items-center transition-colors"
+              >
+                <span>Emma Watson (student2@pstc.test)</span>
+                <span className="text-[10px] text-emerald-600 font-medium">Student 2</span>
               </button>
             </div>
           </div>

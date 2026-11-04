@@ -83,6 +83,40 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
     return () => clearTimeout(timer);
   }, [title, description, locationText, activeCampus?.id, isOpen, similarityIgnored]);
 
+  // Support clipboard paste (Ctrl+V) for screenshot images
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            setIsUploadingMedia(true);
+            setMediaUploadError(null);
+            try {
+              const uploadRes: any = await ApiClient.uploadAttachment(file, `pasted_evidence_${Date.now()}.png`);
+              if (uploadRes?.data) {
+                setAttachments((prev) => [...prev, uploadRes.data]);
+              }
+            } catch (err: any) {
+              setMediaUploadError(err.message || 'Failed to upload pasted image');
+            } finally {
+              setIsUploadingMedia(false);
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleAiParse = async () => {
@@ -316,9 +350,14 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
 
           {/* Photo & Video Evidence Attachments */}
           <div>
-            <label className="block font-semibold text-gray-700 mb-1">
-              Photo or Video Evidence (Optional)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block font-semibold text-gray-700">
+                Photo or Video Evidence (Optional)
+              </label>
+              <span className="text-[11px] text-gray-400 font-medium italic">
+                Optional • Paste with Ctrl+V or click to browse
+              </span>
+            </div>
             <div className="border border-dashed border-gray-300 rounded-xl p-3 bg-gray-50/50">
               <div className="flex items-center justify-between">
                 <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors shadow-sm">
