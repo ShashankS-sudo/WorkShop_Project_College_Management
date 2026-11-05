@@ -389,7 +389,7 @@ export const CreateTicketModal: React.FC<CreateTicketModalProps> = ({
                   {attachments.map((att, idx) => {
                     const isImg = att.mimeType.startsWith('image/');
                     const isVideo = att.mimeType.startsWith('video/');
-                    const previewUrl = att.url?.startsWith('http') ? att.url : `/uploads/attachments/${att.filepath}`;
+                    const previewUrl = ApiClient.getAttachmentUrl(att.url || att.filepath);
                     return (
                       <div
                         key={idx}

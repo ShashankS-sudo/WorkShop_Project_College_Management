@@ -30,6 +30,29 @@ export class ApiClient {
     localStorage.removeItem('unifix_refresh_token');
   }
 
+  public static getHost(): string {
+    if (envApiUrl) {
+      return envApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '');
+    }
+    return '';
+  }
+
+  public static getAttachmentUrl(filepathOrUrl?: string): string {
+    if (!filepathOrUrl) return '';
+    if (filepathOrUrl.startsWith('http://') || filepathOrUrl.startsWith('https://')) {
+      return filepathOrUrl;
+    }
+    const host = this.getHost();
+    const clean = filepathOrUrl.replace(/^\/+/, '');
+    if (clean.startsWith('uploads/attachments/')) {
+      return host ? `${host}/${clean}` : `/${clean}`;
+    }
+    if (clean.startsWith('attachments/')) {
+      return host ? `${host}/uploads/${clean}` : `/uploads/${clean}`;
+    }
+    return host ? `${host}/uploads/attachments/${clean}` : `/uploads/attachments/${clean}`;
+  }
+
   public static async request<T = any>(
     endpoint: string,
     options: RequestInit = {}

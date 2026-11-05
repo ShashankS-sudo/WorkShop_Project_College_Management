@@ -187,26 +187,18 @@ export const TicketDetailPage: React.FC<TicketDetailPageProps> = ({
   };
 
   const getAttachmentUrl = (filepath: string) => {
-    if (!filepath) return '';
-    if (filepath.startsWith('http://') || filepath.startsWith('https://')) {
-      return filepath;
-    }
-    const clean = filepath.replace(/^\/+/, '');
-    if (clean.startsWith('uploads/attachments/')) {
-      return `/${clean}`;
-    }
-    if (clean.startsWith('attachments/')) {
-      return `/uploads/${clean}`;
-    }
-    return `/uploads/attachments/${clean}`;
+    return ApiClient.getAttachmentUrl(filepath);
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, originalUrl: string) => {
     const img = e.currentTarget;
     if (!img.dataset.retried) {
       img.dataset.retried = 'true';
-      const clean = originalUrl.replace(/^\/+/, '');
-      img.src = `http://localhost:3000/${clean}`;
+      const host = ApiClient.getHost();
+      const clean = originalUrl.replace(/^https?:\/\/[^\/]+/, '').replace(/^\/+/, '');
+      if (host) {
+        img.src = `${host}/${clean}`;
+      }
     }
   };
 
