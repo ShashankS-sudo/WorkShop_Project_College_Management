@@ -1,8 +1,17 @@
 // Unifix Mobile Application - React Native (Expo)
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, StatusBar, View, Text, Alert, ActivityIndicator } from 'react-native';
+import {
+  SafeAreaView,
+  StatusBar,
+  View,
+  Text,
+  Alert,
+  ActivityIndicator,
+  useWindowDimensions,
+  Platform,
+} from 'react-native';
 import { MobileApiClient } from './src/api/mobileClient';
-import { styles } from './src/styles/theme';
+import { colors, styles } from './src/styles/theme';
 import { Campus, User, Ticket, Notification } from './src/types';
 import { Header } from './src/components/Header';
 import { BottomTabBar, TabKey } from './src/components/BottomTabBar';
@@ -85,39 +94,88 @@ export default function App() {
 
   if (isSessionChecking) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <StatusBar barStyle="dark-content" />
-        <View style={styles.logoBadge}>
-          <Text style={styles.logoText}>U</Text>
-        </View>
-        <ActivityIndicator size="large" color="#0284c7" style={{ marginTop: 20 }} />
-        <Text style={[styles.appSubtitle, { marginTop: 12 }]}>Restoring session...</Text>
-      </SafeAreaView>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <AuthScreen
-        campuses={campuses}
-        selectedCampus={selectedCampus}
-        onSelectCampus={setSelectedCampus}
-        onAuthSuccess={(user) => {
-          setCurrentUser(user);
-          setIsAuthenticated(true);
-        }}
-      />
+      <ResponsiveShell>
+        <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <StatusBar barStyle="dark-content" />
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoText}>U</Text>
+          </View>
+          <ActivityIndicator size="large" color="#0284c7" style={{ marginTop: 20 }} />
+          <Text style={[styles.appSubtitle, { marginTop: 12 }]}>Restoring session...</Text>
+        </SafeAreaView>
+      </ResponsiveShell>
     );
   }
 
   return (
-    <SocketProvider isAuthenticated={isAuthenticated} campusId={selectedCampus?.id}>
-      <AuthenticatedMainView
-        selectedCampus={selectedCampus}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-      />
-    </SocketProvider>
+    <ResponsiveShell>
+      {!isAuthenticated ? (
+        <AuthScreen
+          campuses={campuses}
+          selectedCampus={selectedCampus}
+          onSelectCampus={setSelectedCampus}
+          onAuthSuccess={(user) => {
+            setCurrentUser(user);
+            setIsAuthenticated(true);
+          }}
+        />
+      ) : (
+        <SocketProvider isAuthenticated={isAuthenticated} campusId={selectedCampus?.id}>
+          <AuthenticatedMainView
+            selectedCampus={selectedCampus}
+            currentUser={currentUser}
+            onLogout={handleLogout}
+          />
+        </SocketProvider>
+      )}
+    </ResponsiveShell>
+  );
+}
+
+function ResponsiveShell({ children }: { children: React.ReactNode }) {
+  const { width, height } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 540;
+
+  if (!isDesktop) {
+    return <View style={{ flex: 1, backgroundColor: colors.background }}>{children}</View>;
+  }
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: '#0f172a', // Deep slate desktop presentation backdrop
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 24,
+      }}
+    >
+      <View style={{ marginBottom: 12, alignItems: 'center' }}>
+        <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>
+          UNIFIX CAMPUS • STUDENT WEB PORTAL
+        </Text>
+      </View>
+
+      <View
+        style={{
+          width: '100%',
+          maxWidth: 440,
+          height: Math.min(height - 70, 920),
+          backgroundColor: colors.background,
+          borderRadius: 28,
+          overflow: 'hidden',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 16 },
+          shadowOpacity: 0.35,
+          shadowRadius: 32,
+          elevation: 20,
+          borderWidth: 1,
+          borderColor: '#334155',
+        }}
+      >
+        {children}
+      </View>
+    </View>
   );
 }
 

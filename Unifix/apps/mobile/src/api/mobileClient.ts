@@ -1,16 +1,31 @@
 // Mobile API Client - Unifix React Native with Persistence & Auto-Refresh
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import { TokenStorage } from './tokenStorage';
 import { User } from '../types';
 
-// In Android emulator, 10.0.2.2 maps to host machine's localhost; otherwise current host/localhost
+// Automatically detect host machine's IP (Localhost, LAN Wi-Fi, or Android Emulator)
 export const getApiHost = (): string => {
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
     const port = window.location.port === '3000' ? '3000' : '3000';
     return `http://${window.location.hostname}:${port}`;
   }
+
+  // On physical Android/iOS phones running Expo Go, extract the PC's actual LAN IP from scriptURL
+  try {
+    const scriptURL = NativeModules?.SourceCode?.scriptURL;
+    if (scriptURL) {
+      const hostPart = scriptURL.split('://')[1]?.split('/')[0]?.split(':')[0];
+      if (hostPart && hostPart !== 'localhost' && hostPart !== '127.0.0.1') {
+        return `http://${hostPart}:3000`;
+      }
+    }
+  } catch {
+    // Ignore error
+  }
+
+  // Fallback for Android emulator or LAN
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3000';
+    return 'http://192.168.31.111:3000';
   }
   return 'http://localhost:3000';
 };

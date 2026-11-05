@@ -14,6 +14,8 @@
     "build": "npm run build --workspace=packages/shared-types && npm run build --workspace=packages/shared-schemas && npm run build --workspace=packages/shared-config && npm run build --workspace=services/api && npm run build --workspace=apps/web",
     "typecheck": "npm run typecheck --workspace=apps/mobile && npm run typecheck --workspace=apps/web",
     "dev": "npm run dev --workspace=services/api",
+    "mobile": "node scripts/start-mobile.js",
+    "web": "npm --prefix apps/web run dev",
     "start": "npm run start --workspace=services/api",
     "seed": "ts-node prisma/seed.ts",
     "test:smoke": "ts-node services/api/src/smokeTest.ts",
