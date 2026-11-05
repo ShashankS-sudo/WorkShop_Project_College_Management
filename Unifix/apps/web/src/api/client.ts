@@ -1,5 +1,8 @@
 // API Client with automatic token handling & refresh - Unifix Web
-const API_BASE = '/api/v1';
+const envApiUrl = import.meta.env.VITE_API_URL;
+const API_BASE = envApiUrl
+  ? (envApiUrl.endsWith('/api/v1') ? envApiUrl : `${envApiUrl.replace(/\/+$/, '')}/api/v1`)
+  : '/api/v1';
 
 export interface ApiResponse<T = any> {
   data?: T;

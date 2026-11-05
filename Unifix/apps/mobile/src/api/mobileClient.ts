@@ -5,9 +5,15 @@ import { User } from '../types';
 
 // Automatically detect host machine's IP (Localhost, LAN Wi-Fi, or Android Emulator)
 export const getApiHost = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '');
+  }
+
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
-    const port = window.location.port === '3000' ? '3000' : '3000';
-    return `http://${window.location.hostname}:${port}`;
+    const h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') {
+      return `http://${h}:3000`;
+    }
   }
 
   // On physical Android/iOS phones running Expo Go, extract the PC's actual LAN IP from scriptURL

@@ -37,8 +37,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const token = localStorage.getItem('unifix_access_token');
     if (!token) return;
 
-    // Use current origin in dev/prod (proxied by Vite or direct)
-    const socketUrl = window.location.origin;
+    // Use production backend host if configured, otherwise current origin in dev
+    const envApiUrl = import.meta.env.VITE_API_URL;
+    const socketUrl = envApiUrl ? envApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '') : window.location.origin;
 
     const newSocket = io(socketUrl, {
       auth: { token },

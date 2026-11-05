@@ -53,7 +53,8 @@ export const SocketProvider: React.FC<SocketProviderProps> = ({
     if (!token) return;
 
     // Connect to backend WebSocket server
-    const newSocket = io(DEFAULT_HOST, {
+    const targetHost = MobileApiClient.getHost();
+    const newSocket = io(targetHost, {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 10,
