@@ -40,6 +40,17 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
   const [similarTickets, setSimilarTickets] = useState<any[]>([]);
   const [isCheckingSimilarity, setIsCheckingSimilarity] = useState<boolean>(false);
   const [similarityIgnored, setSimilarityIgnored] = useState<boolean>(false);
+  const [endorsingTicketId, setEndorsingTicketId] = useState<string | null>(null);
+
+  const handleEndorseClick = async (ticketId: string) => {
+    if (endorsingTicketId) return;
+    setEndorsingTicketId(ticketId);
+    try {
+      await onEndorseExisting(ticketId);
+    } finally {
+      setEndorsingTicketId(null);
+    }
+  };
 
   // Form Fields
   const [reportTitle, setReportTitle] = useState<string>('');
@@ -164,12 +175,15 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  // Debounced real-time similarity check on manual inputs
+  // Debounced real-time similarity check on both AI prompt and manual inputs
   useEffect(() => {
-    if (reportingMode !== 'manual' || !campus || similarityIgnored) return;
+    if (!campus || similarityIgnored) return;
 
-    const query = `${reportTitle} ${reportDescription}`.trim();
-    if (query.length < 8) {
+    const query = reportingMode === 'ai'
+      ? aiPrompt.trim()
+      : `${reportTitle} ${reportDescription} ${reportLocation}`.trim();
+
+    if (query.length < 4) {
       setSimilarTickets([]);
       return;
     }
@@ -179,24 +193,23 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
       try {
         const simRes: any = await MobileApiClient.checkSimilarityWithAI(
           campus.id,
-          reportDescription || reportTitle,
-          reportTitle,
-          reportLocation
+          query,
+          reportingMode === 'ai' ? undefined : reportTitle,
+          reportingMode === 'ai' ? undefined : reportLocation
         );
-        if (simRes.data && simRes.data.length > 0) {
-          setSimilarTickets(simRes.data);
-        } else {
-          setSimilarTickets([]);
-        }
+        const matches = Array.isArray(simRes?.data)
+          ? simRes.data
+          : simRes?.data?.matches || simRes?.matches || [];
+        setSimilarTickets(matches);
       } catch {
         // Non-fatal
       } finally {
         setIsCheckingSimilarity(false);
       }
-    }, 650);
+    }, 450);
 
     return () => clearTimeout(timer);
-  }, [reportTitle, reportDescription, reportLocation, campus?.id, reportingMode, similarityIgnored]);
+  }, [aiPrompt, reportTitle, reportDescription, reportLocation, campus?.id, reportingMode, similarityIgnored]);
 
   const handleAnalyzeWithAI = async () => {
     if (!aiPrompt.trim() || !campus) return;
@@ -213,48 +226,60 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
 
       if (parsed) {
         setAiAnalysisResult(parsed);
-        setReportTitle(parsed.suggestedTitle || '');
-        setReportDescription(aiPrompt.trim());
-        setReportLocation(parsed.suggestedLocation || '');
+        setReportTitle(parsed.suggestedTitle || aiPrompt.trim().slice(0, 60));
+        setReportDescription(parsed.summary || aiPrompt.trim());
+        setReportLocation(parsed.extractedLocation || '');
         setReportSeverity(parsed.suggestedSeverity || 'MODERATE');
 
         // 2. Similarity Check to prevent duplicates
         try {
-          const simRes: any = await MobileApiClient.checkSimilarity(aiPrompt.trim(), campus.id);
-          if (simRes.data && simRes.data.length > 0) {
-            setSimilarTickets(simRes.data);
-          }
+          const simRes: any = await MobileApiClient.checkSimilarityWithAI(
+            campus.id,
+            aiPrompt.trim(),
+            parsed.suggestedTitle,
+            parsed.extractedLocation
+          );
+          const matches = Array.isArray(simRes?.data)
+            ? simRes.data
+            : simRes?.data?.matches || simRes?.matches || [];
+          setSimilarTickets(matches);
         } catch {
           // Similarity check non-fatal
         }
       }
     } catch (err: any) {
-      Alert.alert('AI Processing Error', err.message || 'Could not parse issue. Please use the manual form.');
-      setReportingMode('manual');
+      notifyUser('AI Processing Error', err.message || 'Could not parse issue. Please use the manual form.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   const handleSubmitTicket = async () => {
-    if (!reportTitle.trim()) {
-      notifyUser('Validation Error', 'Please enter an issue title.');
+    const finalTitle = (reportTitle || aiAnalysisResult?.suggestedTitle || aiPrompt || '').trim();
+    if (!finalTitle || finalTitle.length < 3) {
+      notifyUser('Validation Error', 'Please enter an issue title (minimum 3 characters).');
       return;
     }
-    if (!reportDescription.trim()) {
-      notifyUser('Validation Error', 'Please describe the problem.');
-      return;
+
+    let finalDesc = (reportDescription || aiPrompt || finalTitle).trim();
+    if (finalDesc.length < 5) {
+      finalDesc = `${finalTitle}: ${finalDesc}`.trim();
     }
+    if (finalDesc.length < 5) {
+      finalDesc = finalDesc.padEnd(5, '.');
+    }
+
     if (!campus) return;
 
     setIsSubmittingReport(true);
     try {
       await MobileApiClient.createTicket({
         campusId: campus.id,
-        title: reportTitle.trim(),
-        description: reportDescription.trim(),
+        title: finalTitle,
+        description: finalDesc,
         severity: reportSeverity,
-        locationDetails: reportLocation.trim() || undefined,
+        locationDetails: (reportLocation || aiAnalysisResult?.suggestedLocation || '').trim() || undefined,
+        categoryName: aiAnalysisResult?.suggestedCategory || undefined,
         isAnonymous: reportIsAnonymous,
         attachments: attachments.map((a) => ({
           filename: a.filename,
@@ -497,12 +522,40 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
               {similarTickets.map((st) => (
                 <View key={st.ticketId} style={styles.duplicateItem}>
                   <Text style={styles.duplicateItemTitle}>{st.title}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 4 }}>
+                    {st.categoryName && (
+                      <View style={{ backgroundColor: '#e0e7ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#3730a3', fontWeight: '600' }}>{st.categoryName}</Text>
+                      </View>
+                    )}
+                    {st.locationText && (
+                      <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#92400e', fontWeight: '600' }}>📍 {st.locationText}</Text>
+                      </View>
+                    )}
+                    {st.status && (
+                      <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#166534', fontWeight: '600' }}>{st.status}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.duplicateItemReason}>{st.explanation}</Text>
                   <TouchableOpacity
-                    onPress={() => onEndorseExisting(st.ticketId)}
-                    style={styles.endorseButton}
+                    onPress={() => handleEndorseClick(st.ticketId)}
+                    disabled={endorsingTicketId === st.ticketId}
+                    style={[
+                      styles.endorseButton,
+                      endorsingTicketId === st.ticketId && { opacity: 0.7 },
+                    ]}
                   >
-                    <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
+                    {endorsingTicketId === st.ticketId ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                        <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+                        <Text style={styles.endorseButtonText}>Recording Endorsement...</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               ))}
@@ -543,6 +596,16 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
                 value={reportLocation}
                 onChangeText={setReportLocation}
                 placeholder="Room, floor, or building..."
+              />
+
+              <Text style={styles.fieldLabel}>Detailed Description</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                multiline
+                numberOfLines={3}
+                value={reportDescription}
+                onChangeText={setReportDescription}
+                placeholder="Details of the issue..."
               />
 
               {/* Follow-up Clarification Questions */}
@@ -616,12 +679,40 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
               {similarTickets.map((st) => (
                 <View key={st.ticketId} style={styles.duplicateItem}>
                   <Text style={styles.duplicateItemTitle}>{st.title}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 4 }}>
+                    {st.categoryName && (
+                      <View style={{ backgroundColor: '#e0e7ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#3730a3', fontWeight: '600' }}>{st.categoryName}</Text>
+                      </View>
+                    )}
+                    {st.locationText && (
+                      <View style={{ backgroundColor: '#fef3c7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#92400e', fontWeight: '600' }}>📍 {st.locationText}</Text>
+                      </View>
+                    )}
+                    {st.status && (
+                      <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 10, color: '#166534', fontWeight: '600' }}>{st.status}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.duplicateItemReason}>{st.explanation}</Text>
                   <TouchableOpacity
-                    onPress={() => onEndorseExisting(st.ticketId)}
-                    style={styles.endorseButton}
+                    onPress={() => handleEndorseClick(st.ticketId)}
+                    disabled={endorsingTicketId === st.ticketId}
+                    style={[
+                      styles.endorseButton,
+                      endorsingTicketId === st.ticketId && { opacity: 0.7 },
+                    ]}
                   >
-                    <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
+                    {endorsingTicketId === st.ticketId ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                        <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+                        <Text style={styles.endorseButtonText}>Recording Endorsement...</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               ))}

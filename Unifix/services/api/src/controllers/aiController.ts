@@ -120,7 +120,12 @@ export async function checkSimilarity(req: Request, res: Response) {
       candidates
     );
 
-    return res.json({ data: result });
+    return res.json({
+      data: result.matches,
+      matches: result.matches,
+      summary: result.summary,
+      rawResult: result,
+    });
   } catch (error: any) {
     logger.error('Error in AI similarity check', { error: error.message });
     return res.status(500).json({ error: 'Failed to perform similarity check' });

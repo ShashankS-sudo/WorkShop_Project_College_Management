@@ -206,6 +206,7 @@ export const createTicketSchema = z.object({
   locationText: z.string().optional().nullable(),
   locationDetails: z.string().optional().nullable(),
   categoryId: z.string().min(1).optional().nullable(),
+  categoryName: z.string().optional().nullable(),
   departmentId: z.string().min(1).optional().nullable(),
   ticketType: ticketTypeSchema.default('ISSUE'),
   severity: ticketSeveritySchema.default('MODERATE'),

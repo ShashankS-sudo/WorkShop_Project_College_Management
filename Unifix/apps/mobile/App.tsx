@@ -229,6 +229,14 @@ function AuthenticatedMainView({ selectedCampus, currentUser, onLogout }: Authen
     }
   }, [selectedCampus, activeTab]);
 
+  const notifyAppUser = (title: string, message: string) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+      window.alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   // Open Ticket Details Modal
   const openTicketDetails = async (ticketId: string) => {
     setSelectedTicketId(ticketId);
@@ -237,7 +245,7 @@ function AuthenticatedMainView({ selectedCampus, currentUser, onLogout }: Authen
       const res: any = await MobileApiClient.getTicket(ticketId);
       if (res.data) setSelectedTicket(res.data);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not load ticket details.');
+      notifyAppUser('Error', err.message || 'Could not load ticket details.');
     } finally {
       setIsDetailLoading(false);
     }
@@ -378,13 +386,16 @@ function AuthenticatedMainView({ selectedCampus, currentUser, onLogout }: Authen
   const handleEndorse = async (ticketId: string) => {
     try {
       await MobileApiClient.endorseTicket(ticketId);
-      Alert.alert('Endorsed', 'Your endorsement has been recorded for this issue.');
-      loadTickets();
+      notifyAppUser('Endorsed', 'Your endorsement has been recorded! Campus maintenance has been notified.');
+      await loadTickets();
+      if (activeTab === 'report') {
+        setActiveTab('browse');
+      }
       if (selectedTicketId === ticketId) {
         openTicketDetails(ticketId);
       }
     } catch (err: any) {
-      Alert.alert('Endorsement Notice', err.message || 'You have already endorsed this issue.');
+      notifyAppUser('Endorsement Notice', err.message || 'You have already endorsed this issue.');
     }
   };
 
@@ -394,7 +405,7 @@ function AuthenticatedMainView({ selectedCampus, currentUser, onLogout }: Authen
       await MobileApiClient.addComment(selectedTicketId, content);
       openTicketDetails(selectedTicketId);
     } catch (err: any) {
-      Alert.alert('Comment Error', err.message || 'Failed to post comment.');
+      notifyAppUser('Comment Error', err.message || 'Failed to post comment.');
     }
   };
 
@@ -402,11 +413,11 @@ function AuthenticatedMainView({ selectedCampus, currentUser, onLogout }: Authen
     if (!selectedTicketId) return;
     try {
       await MobileApiClient.reopenTicket(selectedTicketId, reason);
-      Alert.alert('Issue Reopened', 'The ticket has been restored to the active maintenance queue.');
+      notifyAppUser('Issue Reopened', 'The ticket has been restored to the active maintenance queue.');
       openTicketDetails(selectedTicketId);
       loadTickets();
     } catch (err: any) {
-      Alert.alert('Reopen Error', err.message || 'Failed to reopen ticket.');
+      notifyAppUser('Reopen Error', err.message || 'Failed to reopen ticket.');
     }
   };
 
@@ -426,7 +437,7 @@ function AuthenticatedMainView({ selectedCampus, currentUser, onLogout }: Authen
       await MobileApiClient.markAllNotificationsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Could not mark notifications read.');
+      notifyAppUser('Error', err.message || 'Could not mark notifications read.');
     }
   };
 

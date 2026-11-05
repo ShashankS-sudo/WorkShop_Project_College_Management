@@ -14,7 +14,7 @@ export class MockAIProvider implements IAIProvider {
     let suggestedCategory = 'Custodial & Cleaning';
     if (lower.includes('light') || lower.includes('bulb') || lower.includes('electric') || lower.includes('outlet') || lower.includes('power') || lower.includes('flicker')) {
       suggestedCategory = 'Lighting & Electrical';
-    } else if (lower.includes('water') || lower.includes('leak') || lower.includes('pipe') || lower.includes('drain') || lower.includes('flood') || lower.includes('toilet') || lower.includes('sink')) {
+    } else if (lower.includes('water') || lower.includes('leak') || lower.includes('pipe') || lower.includes('drain') || lower.includes('flood') || lower.includes('toilet') || lower.includes('sink') || lower.includes('fountain') || lower.includes('tap')) {
       suggestedCategory = 'Plumbing & Water';
     } else if (lower.includes('heat') || lower.includes('cold') || lower.includes('ac') || lower.includes('air') || lower.includes('hvac') || lower.includes('temperature') || lower.includes('freeze')) {
       suggestedCategory = 'HVAC & Temperature';
@@ -24,6 +24,8 @@ export class MockAIProvider implements IAIProvider {
       suggestedCategory = 'Network & Connectivity';
     } else if (lower.includes('door') || lower.includes('lock') || lower.includes('keycard') || lower.includes('badge') || lower.includes('window')) {
       suggestedCategory = 'Doors, Locks & Access';
+    } else if (lower.includes('chair') || lower.includes('table') || lower.includes('desk') || lower.includes('bench') || lower.includes('furniture')) {
+      suggestedCategory = 'Furniture & Fixtures';
     }
 
     // 2. Severity and Priority estimation
@@ -32,7 +34,7 @@ export class MockAIProvider implements IAIProvider {
     let suggestedUrgency: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' = 'NORMAL';
     let suggestedPriority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'MEDIUM';
 
-    if (suggestedCategory === 'Safety Hazard & Emergency' || lower.includes('emergency') || lower.includes('flood') || lower.includes('danger') || lower.includes('hazard')) {
+    if (suggestedCategory === 'Safety Hazard & Emergency' || lower.includes('emergency') || lower.includes('flood') || lower.includes('danger') || lower.includes('hazard') || lower.includes('spark')) {
       suggestedSeverity = 'CRITICAL';
       suggestedImpact = 'BUILDING';
       suggestedUrgency = 'URGENT';
@@ -52,8 +54,9 @@ export class MockAIProvider implements IAIProvider {
     // 3. Location extraction attempt
     let extractedLocation: string | undefined;
     const locationPatterns = [
-      /(?:in|at|outside|near|on)\s+((?:room\s+\d+|floor\s+\d+|\d+(?:st|nd|rd|th)\s+floor|[a-z]+\s+(?:hall|building|center|library|lab|commons|dorm|room|corridor|block|cafeteria)))/i,
-      /((?:room\s+\d+|\d+(?:st|nd|rd|th)\s+floor|[a-z0-9\s-]+\s+(?:library|building|lab|quad|hall)))/i,
+      /(?:in|at|outside|near|on)\s+((?:room\s+\d+|floor\s+\d+|\d+(?:st|nd|rd|th)\s+floor|[a-z0-9\s-]+\s+(?:hall|building|center|library|lab|commons|dorm|room|corridor|block|cafeteria|department)))/i,
+      /((?:room\s+\d+|\d+(?:st|nd|rd|th)\s+floor|[a-z0-9\s-]+\s+(?:library|building|lab|quad|hall|center|block|department)))/i,
+      /\b(?:room|lab|class|floor)\s*(\d{2,4})\b/i,
     ];
 
     for (const pat of locationPatterns) {
@@ -107,34 +110,117 @@ export class MockAIProvider implements IAIProvider {
     newIssue: { title?: string; text: string; location?: string },
     candidates: CandidateTicket[]
   ): Promise<AISimilarityResult> {
-    const query = `${newIssue.title || ''} ${newIssue.text} ${newIssue.location || ''}`.toLowerCase();
-    const queryWords = new Set(query.split(/\W+/).filter((w) => w.length > 3));
+    const rawQuery = `${newIssue.title || ''} ${newIssue.text || ''} ${newIssue.location || ''}`.toLowerCase();
+
+    // Extract room/unit numbers (e.g., 204, 301, 104)
+    const queryRoomNumbers = new Set(rawQuery.match(/\b\d{2,4}\b/g) || []);
+
+    // Meaningful token extraction (length >= 2, filter out stop words)
+    const stopWords = new Set([
+      'the', 'is', 'at', 'which', 'on', 'a', 'an', 'and', 'or', 'in', 'for', 'of', 'to', 'from',
+      'this', 'that', 'with', 'have', 'has', 'been', 'there', 'what', 'where', 'some', 'they', 'them',
+      'very', 'much', 'please', 'help', 'here', 'issue', 'problem', 'since', 'today', 'yesterday', 'about'
+    ]);
+
+    const queryTokens = new Set(
+      (rawQuery.match(/[a-z0-9]+/g) || []).filter((w) => w.length >= 2 && !stopWords.has(w))
+    );
 
     const scoredMatches: Array<{
       ticketId: string;
       title: string;
       similarityScore: number;
       explanation: string;
+      locationText?: string | null;
+      categoryName?: string | null;
+      status?: string;
     }> = [];
 
     for (const cand of candidates) {
-      const candText = `${cand.title} ${cand.description} ${cand.locationText || ''}`.toLowerCase();
-      const candWords = candText.split(/\W+/).filter((w) => w.length > 3);
+      const candRaw = `${cand.title || ''} ${cand.description || ''} ${cand.locationText || ''} ${cand.categoryName || ''}`.toLowerCase();
+      const candTokens = (candRaw.match(/[a-z0-9]+/g) || []).filter((w) => w.length >= 2 && !stopWords.has(w));
+      const candTokenSet = new Set(candTokens);
+      const candRoomNumbers = new Set(candRaw.match(/\b\d{2,4}\b/g) || []);
 
-      let sharedCount = 0;
-      for (const w of candWords) {
-        if (queryWords.has(w)) sharedCount++;
+      let score = 0;
+      const reasons: string[] = [];
+
+      // 1. Exact Room Number match (High confidence: e.g. room 204, room 301)
+      for (const r of queryRoomNumbers) {
+        if (candRoomNumbers.has(r)) {
+          score += 0.45;
+          reasons.push(`Same room/unit #${r}`);
+          break;
+        }
       }
 
-      if (candWords.length === 0) continue;
-      const score = Math.min(1.0, (sharedCount * 2) / (queryWords.size + candWords.length));
+      // 2. Building / Department / Campus Location match
+      const locationKeywords = [
+        'science', 'hall', 'library', 'engineering', 'admin', 'cse', 'ece', 'physics',
+        'chemistry', 'turing', 'corridor', 'lobby', 'cafeteria', 'dorm', 'lab', 'center', 'block'
+      ];
+      let locMatchedCount = 0;
+      for (const loc of locationKeywords) {
+        if (queryTokens.has(loc) && candTokenSet.has(loc)) {
+          locMatchedCount++;
+        }
+      }
+      if (locMatchedCount > 0) {
+        score += Math.min(0.35, locMatchedCount * 0.15);
+        if (cand.locationText) {
+          reasons.push(`Location (${cand.locationText})`);
+        }
+      }
+
+      // 3. Category & Equipment clusters
+      const categoryClusters: Record<string, string[]> = {
+        'Plumbing & Water': ['water', 'leak', 'leaking', 'pipe', 'drain', 'fountain', 'sink', 'toilet', 'flush', 'flood', 'eyewash', 'spill', 'tap'],
+        'Lighting & Electrical': ['light', 'lights', 'lighting', 'flicker', 'flickering', 'bulb', 'electric', 'power', 'outlet', 'spark', 'fan'],
+        'HVAC & Temperature': ['ac', 'air', 'cool', 'cooling', 'heat', 'heating', 'temp', 'temperature', 'vent', 'cold', 'freeze'],
+        'Doors, Locks & Access': ['door', 'lock', 'keycard', 'badge', 'window', 'handle', 'latch'],
+        'Furniture & Fixtures': ['chair', 'table', 'desk', 'bench', 'blackboard', 'whiteboard'],
+        'Network & Tech': ['wifi', 'internet', 'network', 'ethernet', 'router', 'cable', 'screen', 'projector', 'computer'],
+      };
+
+      for (const [catName, keywords] of Object.entries(categoryClusters)) {
+        let qMatches = 0;
+        let cMatches = 0;
+        for (const kw of keywords) {
+          if (queryTokens.has(kw)) qMatches++;
+          if (candTokenSet.has(kw)) cMatches++;
+        }
+        if (qMatches > 0 && cMatches > 0) {
+          score += 0.35;
+          reasons.push(`Category: ${cand.categoryName || catName}`);
+          break;
+        }
+      }
+
+      // 4. General keyword overlap
+      let sharedCount = 0;
+      for (const w of queryTokens) {
+        if (candTokenSet.has(w)) sharedCount++;
+      }
+      if (queryTokens.size > 0) {
+        score += Math.min(0.25, (sharedCount / queryTokens.size) * 0.35);
+      }
+
+      // Cap score
+      score = Math.min(0.98, score);
 
       if (score >= 0.25) {
+        const primaryReason = reasons.length > 0
+          ? reasons.join(' • ')
+          : `Shares keywords regarding ${cand.categoryName || 'facility issue'}`;
+
         scoredMatches.push({
           ticketId: cand.id,
           title: cand.title,
           similarityScore: Math.round(score * 100) / 100,
-          explanation: `Shares relevant keywords regarding ${cand.categoryName || 'facility issue'} around ${cand.locationText || 'campus'}.`,
+          explanation: `${primaryReason} (Status: ${cand.status})`,
+          locationText: cand.locationText || null,
+          categoryName: cand.categoryName || null,
+          status: cand.status,
         });
       }
     }

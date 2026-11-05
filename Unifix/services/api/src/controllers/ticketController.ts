@@ -96,79 +96,103 @@ export async function createTicket(req: Request, res: Response) {
     // Critical tickets have tighter stage timers (e.g. 48h vs 504h for normal)
     const stageDuration = isCritical ? 48 : 504; // hours
 
-    // Transactionally create ticket, initial status history, and attachments
-    const newTicket = await prisma.$transaction(async (tx) => {
-      const ticket = await tx.ticket.create({
-        data: {
-          campusId,
-          reporterId: userId || null,
-          title,
-          description,
-          locationId: locationId || null,
-          locationText: locationText || locationDetails || null,
-          categoryId: categoryId || null,
-          departmentId: departmentId || null,
-          ticketType,
-          severity,
-          impact,
-          urgency,
-          suggestedPriority: initialPriority,
-          priority: initialPriority,
-          status: 'OPEN',
-          isCritical: Boolean(isCritical),
-          isAnonymous: Boolean(isAnonymous),
-          currentStage: 'REPORTED',
-          stageStartTime: new Date(),
-          stageDuration,
-          lastProgressAt: new Date(),
-          statusHistories: {
-            create: {
-              status: 'OPEN',
-              previousStatus: null,
-              changedById: userId,
-              notes: isAnonymous ? 'Report submitted anonymously' : 'Initial ticket submission',
-            },
-          },
-          attachments: attachments?.length
-            ? {
-                create: attachments.map((att: any) => ({
-                  userId,
-                  filename: att.filename,
-                  filepath: att.filepath,
-                  mimeType: att.mimeType,
-                  size: att.size,
-                  uploadedBy: userId,
-                  isApproved: true,
-                })),
-              }
-            : undefined,
-        },
-        include: {
-          campus: { select: { id: true, name: true, code: true } },
-          category: true,
-          location: true,
-          department: true,
-          reporter: {
-            select: { id: true, firstName: true, lastName: true, email: true, phone: true },
-          },
-          attachments: true,
+    // Resolve categoryId from categoryName if provided (e.g. from AI extraction)
+    let resolvedCategoryId = categoryId || null;
+    if (!resolvedCategoryId && req.body.categoryName) {
+      const cat = await prisma.category.findFirst({
+        where: {
+          isActive: true,
+          name: { equals: String(req.body.categoryName).trim(), mode: 'insensitive' },
         },
       });
+      if (cat) {
+        resolvedCategoryId = cat.id;
+      }
+    }
 
-      // Audit log
-      await tx.auditLog.create({
+    // Transactionally create ticket, initial status history, and attachments with high-latency tolerance
+    const newTicket = await prisma.$transaction(
+      async (tx) => {
+        const ticket = await tx.ticket.create({
+          data: {
+            campusId,
+            reporterId: userId || null,
+            title,
+            description,
+            locationId: locationId || null,
+            locationText: locationText || locationDetails || null,
+            categoryId: resolvedCategoryId,
+            departmentId: departmentId || null,
+            ticketType,
+            severity,
+            impact,
+            urgency,
+            suggestedPriority: initialPriority,
+            priority: initialPriority,
+            status: 'OPEN',
+            isCritical: Boolean(isCritical),
+            isAnonymous: Boolean(isAnonymous),
+            currentStage: 'REPORTED',
+            stageStartTime: new Date(),
+            stageDuration,
+            lastProgressAt: new Date(),
+            statusHistories: {
+              create: {
+                status: 'OPEN',
+                previousStatus: null,
+                changedById: userId,
+                notes: isAnonymous ? 'Report submitted anonymously' : 'Initial ticket submission',
+              },
+            },
+            attachments: attachments?.length
+              ? {
+                  create: attachments.map((att: any) => ({
+                    userId,
+                    filename: att.filename,
+                    filepath: att.filepath,
+                    mimeType: att.mimeType,
+                    size: att.size,
+                    uploadedBy: userId,
+                    isApproved: true,
+                  })),
+                }
+              : undefined,
+          },
+          include: {
+            campus: { select: { id: true, name: true, code: true } },
+            category: true,
+            location: true,
+            department: true,
+            reporter: {
+              select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+            },
+            attachments: true,
+          },
+        });
+
+        return ticket;
+      },
+      {
+        maxWait: 10000, // wait up to 10s to acquire connection from pool
+        timeout: 30000, // allow up to 30s for remote Supabase roundtrip
+      }
+    );
+
+    // Audit log asynchronously outside the critical transaction
+    prisma.auditLog
+      .create({
         data: {
           campusId,
           userId,
           action: 'TICKET_CREATED',
           entityType: 'Ticket',
-          entityId: ticket.id,
-          details: { title: ticket.title, isAnonymous: ticket.isAnonymous, priority: ticket.priority },
+          entityId: newTicket.id,
+          details: { title: newTicket.title, isAnonymous: newTicket.isAnonymous, priority: newTicket.priority },
         },
+      })
+      .catch((err) => {
+        logger.warn('Non-fatal: Failed to create audit log for ticket', { error: err.message });
       });
-
-      return ticket;
-    });
 
     const serializedTicket = serializeTicket(newTicket, callerRole, userId);
 
@@ -185,8 +209,11 @@ export async function createTicket(req: Request, res: Response) {
       data: serializedTicket,
     });
   } catch (error: any) {
-    logger.error('Error creating ticket', { error: error.message });
-    return res.status(500).json({ error: 'Failed to create ticket' });
+    logger.error('Error creating ticket', { error: error.message, stack: error.stack });
+    return res.status(500).json({
+      error: error.message || 'Failed to create ticket',
+      details: error.message,
+    });
   }
 }
 

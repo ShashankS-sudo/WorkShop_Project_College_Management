@@ -58,9 +58,13 @@ rl.question('Select option (1-5) [Default: 1 - Web]: ', (answer) => {
   console.log(`\n🚀 Launching: ${modeLabel}...\n`);
 
   const isWindows = process.platform === 'win32';
-  const cmd = isWindows ? 'npx.cmd' : 'npx';
+  const expoCliPath = path.resolve(__dirname, '..', 'node_modules', 'expo', 'bin', 'cli');
+  const useDirectCli = fs.existsSync(expoCliPath);
 
-  const child = spawn(cmd, ['expo', ...expoArgs], {
+  const cmd = useDirectCli ? process.execPath : (isWindows ? 'npx.cmd' : 'npx');
+  const args = useDirectCli ? [expoCliPath, ...expoArgs] : ['expo', ...expoArgs];
+
+  const child = spawn(cmd, args, {
     cwd: mobileDir,
     stdio: 'inherit',
     shell: true,
