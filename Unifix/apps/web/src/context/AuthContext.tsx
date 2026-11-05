@@ -47,6 +47,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const res = await ApiClient.getCurrentUser();
         if (res.data) {
+          const hasAdminPrivileges = res.data.campuses?.some(
+            (c: UserCampus) => c.role === 'MANAGEMENT' || c.role === 'SUPERMANAGEMENT'
+          );
+          if (!hasAdminPrivileges) {
+            ApiClient.clearTokens();
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
+
           setUser(res.data);
           // Set active campus from saved or default to first campus
           const savedCampusId = localStorage.getItem('unifix_active_campus_id');
@@ -71,6 +81,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (identifier: string, code: string, campusId: string) => {
     const res = await ApiClient.verifyOTP(identifier, code, campusId);
     if (res.data) {
+      const hasAdminPrivileges = res.data.campuses?.some(
+        (c: UserCampus) => c.role === 'MANAGEMENT' || c.role === 'SUPERMANAGEMENT'
+      );
+      if (!hasAdminPrivileges) {
+        ApiClient.clearTokens();
+        throw new Error(
+          'Access Denied: Your account has Student / Reporter privileges. The Web Portal is strictly restricted to Campus Management and Facilities Staff. Please use the Unifix Mobile App to report issues.'
+        );
+      }
+
       const userData: AuthUser = {
         id: res.data.user.id,
         email: res.data.user.email,

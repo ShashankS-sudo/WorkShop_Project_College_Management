@@ -134,6 +134,8 @@ export class MockAIProvider implements IAIProvider {
       locationText?: string | null;
       categoryName?: string | null;
       status?: string;
+      hasEndorsed?: boolean;
+      endorsementsCount?: number;
     }> = [];
 
     for (const cand of candidates) {
@@ -221,6 +223,8 @@ export class MockAIProvider implements IAIProvider {
           locationText: cand.locationText || null,
           categoryName: cand.categoryName || null,
           status: cand.status,
+          hasEndorsed: cand.hasEndorsed || false,
+          endorsementsCount: cand.endorsementsCount || 0,
         });
       }
     }

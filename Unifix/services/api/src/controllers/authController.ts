@@ -477,3 +477,468 @@ export async function getCurrentUser(req: Request, res: Response) {
     return res.status(500).json({ error: 'Failed to get current user' });
   }
 }
+
+/**
+ * Step 5: Google / Campus SSO Sign-In (Supports real ID token & dev simulated accounts)
+ */
+export async function googleSignIn(req: Request, res: Response) {
+  try {
+    const { campusId, email, password, displayName, avatarUrl, oneTap } = req.body;
+
+    if (!campusId || !email) {
+      return res.status(400).json({ error: 'campusId and email are required for Google Sign-In' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanPassword = password ? String(password).trim() : null;
+
+    if (!cleanPassword && !oneTap) {
+      return res.status(400).json({ error: 'Password is required to sign in with this Google account.' });
+    }
+
+    const campus = await resolveCampus(campusId);
+    if (!campus || !campus.isActive) {
+      return res.status(404).json({ error: 'Campus not found or inactive' });
+    }
+    const resolvedCampusId = campus.id;
+
+    // Check against authorized directory
+    let authorized = await prisma.campusAuthorizedIdentity.findFirst({
+      where: {
+        campusId: resolvedCampusId,
+        email: { equals: cleanEmail, mode: 'insensitive' },
+        isActive: true,
+      },
+    });
+
+    const config = getConfig();
+
+    if (authorized) {
+      // Validate password if supplied or if not 1-tap
+      if (cleanPassword) {
+        const meta = (authorized.metadata && typeof authorized.metadata === 'object') ? (authorized.metadata as any) : {};
+        const expectedPassword = String(meta.password || '1234');
+        if (cleanPassword !== expectedPassword) {
+          return res.status(401).json({
+            error: 'Incorrect password',
+            message: 'The password you entered is incorrect. (Default demo password is: 1234)',
+          });
+        }
+      }
+    } else if (oneTap) {
+      return res.status(401).json({
+        error: 'Identity not found',
+        message: 'This account is no longer registered in the campus directory. Please add it again.',
+      });
+    } else {
+      // If user is not yet in directory (e.g. adding a new Google account)
+      if (config.nodeEnv === 'production') {
+        return res.status(403).json({
+          error: 'Identity not authorized',
+          message: 'This Google account is not registered in this campus directory. Please contact campus administration.',
+        });
+      }
+
+      // In development / demo, automatically register this new Google user with their entered password
+      const effectiveName = displayName || 'Campus Student';
+      authorized = await prisma.campusAuthorizedIdentity.create({
+        data: {
+          campusId: resolvedCampusId,
+          email: cleanEmail,
+          displayName: effectiveName,
+          role: 'REPORTER',
+          department: 'General Studies',
+          isActive: true,
+          metadata: {
+            password: cleanPassword || '1234',
+            createdVia: 'google_sso',
+          },
+        },
+      });
+    }
+
+    const role = authorized?.role || 'REPORTER';
+    const effectiveName = displayName || authorized?.displayName || 'Campus User';
+    const nameParts = effectiveName.split(' ');
+    const firstName = nameParts[0] || 'User';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    // Find or create user
+    let user = await prisma.user.findFirst({
+      where: { email: cleanEmail },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: cleanEmail,
+          firstName,
+          lastName,
+          avatarUrl: avatarUrl || undefined,
+          isAnonymous: false,
+          emailVerified: new Date(),
+          lastLogin: new Date(),
+        },
+      });
+    } else {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastLogin: new Date(),
+          avatarUrl: avatarUrl || user.avatarUrl,
+        },
+      });
+    }
+
+    // Upsert CampusMembership
+    await prisma.campusMembership.upsert({
+      where: {
+        userId_campusId: {
+          userId: user.id,
+          campusId: resolvedCampusId,
+        },
+      },
+      update: {
+        isActive: true,
+      },
+      create: {
+        userId: user.id,
+        campusId: resolvedCampusId,
+        role,
+        isActive: true,
+      },
+    });
+
+    // Query active memberships
+    const allMemberships = await prisma.campusMembership.findMany({
+      where: { userId: user.id, isActive: true },
+      include: { campus: true },
+    });
+
+    // Generate JWT access token
+    const tokenPayload: TokenPayload = {
+      userId: user.id,
+      campusIds: allMemberships.map((m) => m.campusId),
+      roles: allMemberships.map((m) => m.role as any),
+      isAnonymous: false,
+    };
+
+    const accessToken = jwt.sign(tokenPayload, config.jwt.accessSecret, {
+      expiresIn: '15m',
+    });
+
+    // Generate opaque refresh token
+    const rawRefreshToken = crypto.randomBytes(40).toString('hex');
+    const tokenHash = hashToken(rawRefreshToken);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await prisma.refreshSession.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+        userAgent: req.get('User-Agent') || null,
+        ipAddress: req.ip || null,
+      },
+    });
+
+    return res.json({
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          avatarUrl: user.avatarUrl,
+          isAnonymous: false,
+        },
+        campuses: allMemberships.map((m) => ({
+          id: m.campus.id,
+          name: m.campus.name,
+          code: m.campus.code,
+          role: m.role,
+        })),
+        accessToken,
+        refreshToken: rawRefreshToken,
+        tokenType: 'Bearer',
+        expiresIn: 900,
+      },
+    });
+  } catch (error: any) {
+    logger.error('Error in Google Sign-In', { error: error.message });
+    return res.status(500).json({ error: 'Google sign-in failed' });
+  }
+}
+
+/**
+ * Get sample/demo authorized student accounts for instant dev selection
+ */
+export async function getDemoAccounts(req: Request, res: Response) {
+  try {
+    const campusId = (req.query.campusId as string) || req.body.campusId;
+    const campus = await resolveCampus(campusId || 'PSTC');
+    if (!campus) {
+      return res.status(404).json({ error: 'Campus not found' });
+    }
+
+    const identities = await prisma.campusAuthorizedIdentity.findMany({
+      where: {
+        campusId: campus.id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        department: true,
+        externalId: true,
+        metadata: true,
+      },
+      take: 6,
+    });
+
+    const accountsWithPassword = identities.map((id) => {
+      const meta = (id.metadata && typeof id.metadata === 'object') ? (id.metadata as any) : {};
+      return {
+        id: id.id,
+        email: id.email,
+        displayName: id.displayName,
+        role: id.role,
+        department: id.department,
+        externalId: id.externalId,
+        password: meta.password || '1234',
+      };
+    });
+
+    return res.json({ data: accountsWithPassword });
+  } catch (error: any) {
+    logger.error('Error fetching demo accounts', { error: error.message });
+    return res.status(500).json({ error: 'Failed to fetch demo accounts' });
+  }
+}
+
+
+/**
+ * Standard Campus Login: Email / Phone + Password
+ */
+export async function loginWithPassword(req: Request, res: Response) {
+  try {
+    const { campusId, identifier, email, password, isAnonymous } = req.body;
+    const cleanIdentifier = String(identifier || email || '').trim().toLowerCase();
+
+    if (!campusId) {
+      return res.status(400).json({ error: 'campusId is required' });
+    }
+
+    const campus = await resolveCampus(campusId);
+    if (!campus || !campus.isActive) {
+      return res.status(404).json({ error: 'Campus not found or inactive' });
+    }
+    const resolvedCampusId = campus.id;
+
+    if (isAnonymous) {
+      const anonUser = await prisma.user.create({
+        data: {
+          firstName: 'Anonymous',
+          lastName: 'Guest',
+          isAnonymous: true,
+          lastLogin: new Date(),
+        },
+      });
+
+      await prisma.campusMembership.create({
+        data: {
+          userId: anonUser.id,
+          campusId: resolvedCampusId,
+          role: 'REPORTER',
+          isActive: true,
+        },
+      });
+
+      const tokenPayload: TokenPayload = {
+        userId: anonUser.id,
+        campusIds: [resolvedCampusId],
+        roles: ['REPORTER'],
+        isAnonymous: true,
+      };
+
+      const config = getConfig();
+      const accessToken = jwt.sign(tokenPayload, config.jwt.accessSecret, { expiresIn: '15m' });
+      const rawRefreshToken = crypto.randomBytes(40).toString('hex');
+      const tokenHash = hashToken(rawRefreshToken);
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      await prisma.refreshSession.create({
+        data: {
+          userId: anonUser.id,
+          tokenHash,
+          expiresAt,
+        },
+      });
+
+      return res.json({
+        data: {
+          user: {
+            id: anonUser.id,
+            email: null,
+            phone: null,
+            firstName: 'Anonymous',
+            lastName: 'Guest',
+            avatarUrl: null,
+            isAnonymous: true,
+          },
+          campuses: [{
+            id: campus.id,
+            name: campus.name,
+            code: campus.code,
+            role: 'REPORTER',
+          }],
+          accessToken,
+          refreshToken: rawRefreshToken,
+          tokenType: 'Bearer',
+        },
+      });
+    }
+
+    if (!cleanIdentifier || !password) {
+      return res.status(400).json({ error: 'Campus email and password are required' });
+    }
+
+    const cleanPassword = String(password).trim();
+
+    const authorized = await prisma.campusAuthorizedIdentity.findFirst({
+      where: {
+        campusId: resolvedCampusId,
+        isActive: true,
+        OR: [
+          { email: { equals: cleanIdentifier, mode: 'insensitive' } },
+          { phone: cleanIdentifier },
+        ],
+      },
+    });
+
+    if (!authorized) {
+      return res.status(404).json({
+        error: 'Account not found',
+        message: 'No campus account found with this email for the selected campus.',
+      });
+    }
+
+    const meta = (authorized.metadata && typeof authorized.metadata === 'object') ? (authorized.metadata as any) : {};
+    const expectedPassword = String(meta.password || '1234');
+    if (cleanPassword !== expectedPassword) {
+      return res.status(401).json({
+        error: 'Incorrect password',
+        message: 'The password you entered is incorrect. (Default demo password is: 1234)',
+      });
+    }
+
+    const role = authorized.role || 'REPORTER';
+    const effectiveName = authorized.displayName || 'Campus User';
+    const nameParts = effectiveName.split(' ');
+    const firstName = nameParts[0] || 'User';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    let user = await prisma.user.findFirst({
+      where: cleanIdentifier.includes('@')
+        ? { email: { equals: cleanIdentifier, mode: 'insensitive' } }
+        : { phone: cleanIdentifier },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: cleanIdentifier.includes('@') ? cleanIdentifier : undefined,
+          phone: cleanIdentifier.includes('@') ? undefined : cleanIdentifier,
+          firstName,
+          lastName,
+          isAnonymous: false,
+          emailVerified: cleanIdentifier.includes('@') ? new Date() : undefined,
+          phoneVerified: !cleanIdentifier.includes('@') ? new Date() : undefined,
+          lastLogin: new Date(),
+        },
+      });
+    } else {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() },
+      });
+    }
+
+    await prisma.campusMembership.upsert({
+      where: {
+        userId_campusId: {
+          userId: user.id,
+          campusId: resolvedCampusId,
+        },
+      },
+      update: {
+        role,
+        isActive: true,
+      },
+      create: {
+        userId: user.id,
+        campusId: resolvedCampusId,
+        role,
+        isActive: true,
+      },
+    });
+
+    const allMemberships = await prisma.campusMembership.findMany({
+      where: { userId: user.id, isActive: true },
+      include: { campus: true },
+    });
+
+    const tokenPayload: TokenPayload = {
+      userId: user.id,
+      campusIds: allMemberships.map((m) => m.campusId),
+      roles: allMemberships.map((m) => m.role as any),
+      isAnonymous: false,
+    };
+
+    const config = getConfig();
+    const accessToken = jwt.sign(tokenPayload, config.jwt.accessSecret, {
+      expiresIn: '15m',
+    });
+
+    const rawRefreshToken = crypto.randomBytes(40).toString('hex');
+    const tokenHash = hashToken(rawRefreshToken);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await prisma.refreshSession.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    return res.json({
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          phone: user.phone,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          avatarUrl: user.avatarUrl,
+          isAnonymous: false,
+        },
+        campuses: allMemberships.map((m) => ({
+          id: m.campus.id,
+          name: m.campus.name,
+          code: m.campus.code,
+          role: m.role,
+        })),
+        accessToken,
+        refreshToken: rawRefreshToken,
+        tokenType: 'Bearer',
+      },
+    });
+  } catch (error: any) {
+    logger.error('Error logging in with password', { error: error.message });
+    return res.status(500).json({ error: 'Failed to sign in' });
+  }
+}

@@ -396,6 +396,7 @@ function AuthenticatedMainView({ selectedCampus, currentUser, onLogout }: Authen
       }
     } catch (err: any) {
       notifyAppUser('Endorsement Notice', err.message || 'You have already endorsed this issue.');
+      throw err;
     }
   };
 

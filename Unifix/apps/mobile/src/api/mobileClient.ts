@@ -213,6 +213,69 @@ export const MobileApiClient = {
     return res;
   },
 
+  async loginWithPassword(params: {
+    campusId: string;
+    identifier?: string;
+    email?: string;
+    password?: string;
+    isAnonymous?: boolean;
+  }) {
+    const res: any = await this.request('/auth/login-password', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+
+    if (res.data?.accessToken && res.data?.refreshToken) {
+      if (res.data?.user) {
+        await this.saveSession(res.data.user, res.data.accessToken, res.data.refreshToken);
+      } else {
+        this.setTokens(res.data.accessToken, res.data.refreshToken);
+      }
+    }
+    return res;
+  },
+
+  async googleSignIn(params: {
+    campusId: string;
+    email: string;
+    password?: string;
+    displayName?: string;
+    avatarUrl?: string;
+    idToken?: string;
+    oneTap?: boolean;
+  }) {
+    const res: any = await this.request('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+
+    if (res.data?.accessToken && res.data?.refreshToken) {
+      if (res.data?.user) {
+        await this.saveSession(res.data.user, res.data.accessToken, res.data.refreshToken);
+      } else {
+        this.setTokens(res.data.accessToken, res.data.refreshToken);
+      }
+    }
+    return res;
+  },
+
+  async getSavedGoogleAccounts() {
+    return TokenStorage.getSavedGoogleAccounts();
+  },
+
+  async saveGoogleAccount(acc: import('./tokenStorage').SavedGoogleAccount) {
+    return TokenStorage.saveGoogleAccount(acc);
+  },
+
+  async removeGoogleAccount(email: string) {
+    return TokenStorage.removeGoogleAccount(email);
+  },
+
+  async getDemoAccounts(campusId?: string) {
+    const q = campusId ? `?campusId=${encodeURIComponent(campusId)}` : '';
+    return this.request(`/auth/demo-accounts${q}`);
+  },
+
   async getCurrentUser() {
     return this.request('/auth/me');
   },

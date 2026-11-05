@@ -95,6 +95,9 @@ router.post(
   authController.refreshToken
 );
 router.post('/auth/logout', authController.logout);
+router.post('/auth/google', authGeneralRateLimiter, authController.googleSignIn);
+router.post('/auth/login-password', authGeneralRateLimiter, authController.loginWithPassword);
+router.get('/auth/demo-accounts', authController.getDemoAccounts);
 router.get('/auth/me', authenticate, authController.getCurrentUser);
 
 // ==========================================

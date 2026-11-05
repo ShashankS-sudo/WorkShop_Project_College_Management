@@ -23,6 +23,8 @@ export interface CandidateTicket {
   locationText?: string | null;
   categoryName?: string | null;
   status: string;
+  hasEndorsed?: boolean;
+  endorsementsCount?: number;
 }
 
 export interface AISimilarityResult {
@@ -31,6 +33,11 @@ export interface AISimilarityResult {
     title: string;
     similarityScore: number; // 0.0 to 1.0
     explanation: string;
+    locationText?: string | null;
+    categoryName?: string | null;
+    status?: string;
+    hasEndorsed?: boolean;
+    endorsementsCount?: number;
   }>;
   summary: string;
   modelUsed: string;

@@ -78,6 +78,7 @@ export async function parseIssueDescription(req: Request, res: Response) {
 export async function checkSimilarity(req: Request, res: Response) {
   try {
     const { campusId, title, text, location } = req.body;
+    const callerId = (req as any).userId;
 
     if (!campusId || (!text && !title)) {
       return res.status(400).json({ error: 'campusId and issue text are required' });
@@ -96,6 +97,7 @@ export async function checkSimilarity(req: Request, res: Response) {
         locationText: true,
         status: true,
         category: { select: { name: true } },
+        endorsements: { select: { endorserId: true } },
       },
       take: 20,
       orderBy: { createdAt: 'desc' },
@@ -108,6 +110,8 @@ export async function checkSimilarity(req: Request, res: Response) {
       locationText: c.locationText,
       categoryName: c.category?.name || null,
       status: c.status,
+      hasEndorsed: callerId ? c.endorsements?.some((e) => e.endorserId === callerId) : false,
+      endorsementsCount: c.endorsements?.length || 0,
     }));
 
     const ai = getAIProvider();

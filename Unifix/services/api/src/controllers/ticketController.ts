@@ -110,73 +110,63 @@ export async function createTicket(req: Request, res: Response) {
       }
     }
 
-    // Transactionally create ticket, initial status history, and attachments with high-latency tolerance
-    const newTicket = await prisma.$transaction(
-      async (tx) => {
-        const ticket = await tx.ticket.create({
-          data: {
-            campusId,
-            reporterId: userId || null,
-            title,
-            description,
-            locationId: locationId || null,
-            locationText: locationText || locationDetails || null,
-            categoryId: resolvedCategoryId,
-            departmentId: departmentId || null,
-            ticketType,
-            severity,
-            impact,
-            urgency,
-            suggestedPriority: initialPriority,
-            priority: initialPriority,
+    // Atomically create ticket, initial status history, and attachments in a single query
+    const newTicket = await prisma.ticket.create({
+      data: {
+        campusId,
+        reporterId: userId || null,
+        title,
+        description,
+        locationId: locationId || null,
+        locationText: locationText || locationDetails || null,
+        categoryId: resolvedCategoryId,
+        departmentId: departmentId || null,
+        ticketType,
+        severity,
+        impact,
+        urgency,
+        suggestedPriority: initialPriority,
+        priority: initialPriority,
+        status: 'OPEN',
+        isCritical: Boolean(isCritical),
+        isAnonymous: Boolean(isAnonymous),
+        currentStage: 'REPORTED',
+        stageStartTime: new Date(),
+        stageDuration,
+        lastProgressAt: new Date(),
+        statusHistories: {
+          create: {
             status: 'OPEN',
-            isCritical: Boolean(isCritical),
-            isAnonymous: Boolean(isAnonymous),
-            currentStage: 'REPORTED',
-            stageStartTime: new Date(),
-            stageDuration,
-            lastProgressAt: new Date(),
-            statusHistories: {
-              create: {
-                status: 'OPEN',
-                previousStatus: null,
-                changedById: userId,
-                notes: isAnonymous ? 'Report submitted anonymously' : 'Initial ticket submission',
-              },
-            },
-            attachments: attachments?.length
-              ? {
-                  create: attachments.map((att: any) => ({
-                    userId,
-                    filename: att.filename,
-                    filepath: att.filepath,
-                    mimeType: att.mimeType,
-                    size: att.size,
-                    uploadedBy: userId,
-                    isApproved: true,
-                  })),
-                }
-              : undefined,
+            previousStatus: null,
+            changedById: userId,
+            notes: isAnonymous ? 'Report submitted anonymously' : 'Initial ticket submission',
           },
-          include: {
-            campus: { select: { id: true, name: true, code: true } },
-            category: true,
-            location: true,
-            department: true,
-            reporter: {
-              select: { id: true, firstName: true, lastName: true, email: true, phone: true },
-            },
-            attachments: true,
-          },
-        });
-
-        return ticket;
+        },
+        attachments: attachments?.length
+          ? {
+              create: attachments.map((att: any) => ({
+                userId,
+                filename: att.filename,
+                filepath: att.filepath,
+                mimeType: att.mimeType,
+                size: att.size,
+                uploadedBy: userId,
+                isApproved: true,
+              })),
+            }
+          : undefined,
       },
-      {
-        maxWait: 10000, // wait up to 10s to acquire connection from pool
-        timeout: 30000, // allow up to 30s for remote Supabase roundtrip
-      }
-    );
+      include: {
+        campus: { select: { id: true, name: true, code: true } },
+        category: true,
+        location: true,
+        department: true,
+        reporter: {
+          select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+        },
+        attachments: true,
+      },
+    });
 
     // Audit log asynchronously outside the critical transaction
     prisma.auditLog
@@ -620,7 +610,7 @@ export async function acknowledgeTicket(req: Request, res: Response) {
       });
 
       return result;
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     emitToCampus(ticket.campusId, SocketEvent.TICKET_UPDATED, {
       campusId: ticket.campusId,
@@ -707,7 +697,7 @@ export async function assignTicket(req: Request, res: Response) {
       });
 
       return result;
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     emitToCampus(ticket.campusId, SocketEvent.TICKET_UPDATED, {
       campusId: ticket.campusId,
@@ -792,7 +782,7 @@ export async function recordProgress(req: Request, res: Response) {
       });
 
       return event;
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     emitToTicket(ticketId, SocketEvent.PROGRESS_RECORDED, {
       ticketId,
@@ -854,7 +844,7 @@ export async function overridePriority(req: Request, res: Response) {
       });
 
       return result;
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     emitToCampus(ticket.campusId, SocketEvent.TICKET_UPDATED, {
       campusId: ticket.campusId,
@@ -934,7 +924,7 @@ export async function resolveTicket(req: Request, res: Response) {
       }
 
       return result;
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     emitToCampus(ticket.campusId, SocketEvent.TICKET_UPDATED, {
       campusId: ticket.campusId,
@@ -1031,7 +1021,7 @@ export async function reopenTicket(req: Request, res: Response) {
       });
 
       return result;
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     emitToCampus(ticket.campusId, SocketEvent.TICKET_UPDATED, {
       campusId: ticket.campusId,
@@ -1104,7 +1094,7 @@ export async function markDuplicate(req: Request, res: Response) {
       });
 
       return result;
-    });
+    }, { maxWait: 15000, timeout: 30000 });
 
     emitToCampus(ticket.campusId, SocketEvent.TICKET_UPDATED, {
       campusId: ticket.campusId,

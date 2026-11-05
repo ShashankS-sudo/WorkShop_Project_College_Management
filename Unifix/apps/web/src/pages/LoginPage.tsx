@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ApiClient } from '../api/client';
-import { Building2, ArrowRight, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Building2, ArrowRight, ShieldCheck, KeyRound, CheckCircle2, Lock } from 'lucide-react';
 
 interface CampusOption {
   id: string;
@@ -88,7 +88,7 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="flex justify-center">
           <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-md">
             U
@@ -100,13 +100,17 @@ export const LoginPage: React.FC = () => {
         <p className="mt-1 text-center text-xs text-gray-500">
           Multi-campus facility operations & lifecycle escalation portal
         </p>
+        <div className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold">
+          <Lock className="w-3 h-3 text-amber-600" />
+          Restricted to Authorized Campus Staff & Management
+        </div>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="card p-8 bg-white shadow-sm border border-gray-200/80 rounded-2xl">
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
-              {error}
+            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 leading-relaxed">
+              ⚠️ {error}
             </div>
           )}
 
@@ -132,7 +136,7 @@ export const LoginPage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Authorized Email or Phone
+                  Staff Email or Phone
                 </label>
                 <input
                   type="text"
@@ -149,7 +153,7 @@ export const LoginPage: React.FC = () => {
                 disabled={isSubmitting}
                 className="btn-primary w-full py-2.5 text-sm mt-2"
               >
-                {isSubmitting ? 'Checking Eligibility...' : 'Continue to Verification'}
+                {isSubmitting ? 'Checking Authorization...' : 'Continue to Verification'}
                 <ArrowRight className="w-4 h-4 ml-1" />
               </button>
             </form>
@@ -203,10 +207,10 @@ export const LoginPage: React.FC = () => {
             </form>
           )}
 
-          {/* Development Quick-Fill Accounts */}
+          {/* Authorized Management Profiles */}
           <div className="mt-6 pt-5 border-t border-gray-100">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
-              Development Quick-Fill Profiles
+              Authorized Management Profiles
             </div>
             <div className="space-y-1.5">
               <button
@@ -214,26 +218,29 @@ export const LoginPage: React.FC = () => {
                 onClick={() => fillQuickDemo('admin@pstc.test', 'PSTC')}
                 className="w-full text-left px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs text-gray-700 flex justify-between items-center transition-colors"
               >
-                <span>System Admin (admin@pstc.test)</span>
-                <span className="text-[10px] text-blue-600 font-semibold">1 Admin</span>
+                <span>Facilities Lead (admin@pstc.test)</span>
+                <span className="text-[10px] text-blue-600 font-semibold">Management</span>
               </button>
               <button
                 type="button"
-                onClick={() => fillQuickDemo('student.alex@pstc.test', 'PSTC')}
+                onClick={() => fillQuickDemo('manager.sarah@pstc.test', 'PSTC')}
                 className="w-full text-left px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs text-gray-700 flex justify-between items-center transition-colors"
               >
-                <span>Alex Mercer (student.alex@pstc.test)</span>
-                <span className="text-[10px] text-emerald-600 font-medium">Student 1</span>
+                <span>Maintenance Admin (manager.sarah@pstc.test)</span>
+                <span className="text-[10px] text-blue-600 font-semibold">Management</span>
               </button>
               <button
                 type="button"
-                onClick={() => fillQuickDemo('student2@pstc.test', 'PSTC')}
+                onClick={() => fillQuickDemo('director.kiran@unifix.global', 'PSTC')}
                 className="w-full text-left px-2.5 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-xs text-gray-700 flex justify-between items-center transition-colors"
               >
-                <span>Emma Watson (student2@pstc.test)</span>
-                <span className="text-[10px] text-emerald-600 font-medium">Student 2</span>
+                <span>Global Director (director.kiran@unifix.global)</span>
+                <span className="text-[10px] text-purple-600 font-semibold">Supermanagement</span>
               </button>
             </div>
+            <p className="mt-3 text-[11px] text-gray-400 text-center leading-normal">
+              Students and guests cannot access this portal and must use the <strong>Unifix Mobile App</strong>.
+            </p>
           </div>
         </div>
       </div>

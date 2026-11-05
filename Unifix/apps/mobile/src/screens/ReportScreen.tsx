@@ -41,12 +41,18 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
   const [isCheckingSimilarity, setIsCheckingSimilarity] = useState<boolean>(false);
   const [similarityIgnored, setSimilarityIgnored] = useState<boolean>(false);
   const [endorsingTicketId, setEndorsingTicketId] = useState<string | null>(null);
+  const [endorsedTicketIds, setEndorsedTicketIds] = useState<string[]>([]);
 
   const handleEndorseClick = async (ticketId: string) => {
     if (endorsingTicketId) return;
     setEndorsingTicketId(ticketId);
     try {
       await onEndorseExisting(ticketId);
+      setEndorsedTicketIds((prev) => [...prev, ticketId]);
+    } catch (err: any) {
+      if (err?.message && String(err.message).toLowerCase().includes('already endorsed')) {
+        setEndorsedTicketIds((prev) => [...prev, ticketId]);
+      }
     } finally {
       setEndorsingTicketId(null);
     }
@@ -540,23 +546,29 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
                     )}
                   </View>
                   <Text style={styles.duplicateItemReason}>{st.explanation}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleEndorseClick(st.ticketId)}
-                    disabled={endorsingTicketId === st.ticketId}
-                    style={[
-                      styles.endorseButton,
-                      endorsingTicketId === st.ticketId && { opacity: 0.7 },
-                    ]}
-                  >
-                    {endorsingTicketId === st.ticketId ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                        <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
-                        <Text style={styles.endorseButtonText}>Recording Endorsement...</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
-                    )}
-                  </TouchableOpacity>
+                  {st.hasEndorsed || endorsedTicketIds.includes(st.ticketId) ? (
+                    <View style={[styles.endorseButton, { backgroundColor: '#10b981', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}>
+                      <Text style={styles.endorseButtonText}>✅ You have endorsed this issue</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => handleEndorseClick(st.ticketId)}
+                      disabled={endorsingTicketId === st.ticketId}
+                      style={[
+                        styles.endorseButton,
+                        endorsingTicketId === st.ticketId && { opacity: 0.7 },
+                      ]}
+                    >
+                      {endorsingTicketId === st.ticketId ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                          <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+                          <Text style={styles.endorseButtonText}>Recording Endorsement...</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
               <TouchableOpacity
@@ -697,23 +709,29 @@ export const ReportScreen: React.FC<ReportScreenProps> = ({
                     )}
                   </View>
                   <Text style={styles.duplicateItemReason}>{st.explanation}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleEndorseClick(st.ticketId)}
-                    disabled={endorsingTicketId === st.ticketId}
-                    style={[
-                      styles.endorseButton,
-                      endorsingTicketId === st.ticketId && { opacity: 0.7 },
-                    ]}
-                  >
-                    {endorsingTicketId === st.ticketId ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                        <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
-                        <Text style={styles.endorseButtonText}>Recording Endorsement...</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
-                    )}
-                  </TouchableOpacity>
+                  {st.hasEndorsed || endorsedTicketIds.includes(st.ticketId) ? (
+                    <View style={[styles.endorseButton, { backgroundColor: '#10b981', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}>
+                      <Text style={styles.endorseButtonText}>✅ You have endorsed this issue</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => handleEndorseClick(st.ticketId)}
+                      disabled={endorsingTicketId === st.ticketId}
+                      style={[
+                        styles.endorseButton,
+                        endorsingTicketId === st.ticketId && { opacity: 0.7 },
+                      ]}
+                    >
+                      {endorsingTicketId === st.ticketId ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                          <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+                          <Text style={styles.endorseButtonText}>Recording Endorsement...</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.endorseButtonText}>👍 I have this issue too (Endorse)</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
               <TouchableOpacity
