@@ -11,7 +11,11 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "paths": {
+      "@unifix/shared-types": ["../../packages/shared-types/src/index.ts"]
+    }
   },
   "include": [
     "**/*.ts",
